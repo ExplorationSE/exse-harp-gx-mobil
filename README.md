@@ -63,6 +63,17 @@ python tools\validate_gx.py              REM g(n) berechnen und mit den Sollwert
 **Normierung:** cw: g⁽ⁿ⁾ = N_Tupel / (N_a · Π_j N_j·w/T). Gepulst: g⁽ⁿ⁾(0) = N(0,…,0) / ⟨N(k₁P, k₂P, …)⟩ mit
 paarweise verschiedenen Pulsabständen k_j ≠ 0 (Seitenpeaks). Heralded: g²_h = N_h · N_h12 / (N_h1 · N_h2).
 
+## GX 0.2 – Live g²/g³/g⁴
+
+Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall). Ansichten g³ (Heatmap + Schnitte) und g⁴
+(τ3-Schnitt, Diagonale, g⁴(0,0,0)). Messung auf der Box (8 Threads, Tempo 1×, Ansicht g³): 5,8–78 Mtags/s
+Rechenkapazität je Demodatei, Frame-Latenz median ≈ 150 ms, Frames 0,6–2,1 kB.
+
+Einschränkungen: Karten werden nur aufsummiert (kein Abklingen); snAPI-Quelle liefert keine Einzelereignisse
+(kein g³/g⁴); Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); thermisch cw braucht großen Bereich
+(teuer); Kalibrierung braucht ein Merkmal im g² (beim kohärenten Laser keine); Kacheln nutzen ein festes,
+bei τ=0 zentriertes Fenster; GPU-Pfad (wgpu) noch nicht vorhanden.
+
 ## Funktionen
 
 - **Drei Ansichten:** Histogramm (Zeit nach Sync bzw. nach Referenzkanal), Korrelation g² (τ = t(Kn) − t(Kref),

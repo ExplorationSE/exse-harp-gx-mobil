@@ -177,6 +177,8 @@ class PurePythonPtuSource(DataSource):
             progress=min(1.0, (self._t - self._t0) / max(1, self._t_end - self._t0)),
             has_histogram=has_hist, wrapped=wrapped, hist_kind=kind,
             corr=corr, corr_bin_ps=cbw, corr_x0_ps=-(CORR_BINS // 2) * cbw,
+            events=(np.rint(np.asarray(ct, np.float64) * base_ps).astype(np.int64) if base_ps != 1.0
+                    else np.asarray(ct, np.int64), np.asarray(cc)),
         )
 
 

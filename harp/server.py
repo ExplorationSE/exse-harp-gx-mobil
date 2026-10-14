@@ -27,12 +27,16 @@ from .control import (ALLOWED_CMDS, CommandError, CommandLog, ControlLock, Setti
                       validate_set)
 from .histogram import CORR_BINS, Accumulator, RateTracker, hist_len_from_code, rebin
 from .sources import AcqParams, DataSource, SourceError, SourceInfo, create_source
+from .gx import wire as gxwire
+from .gx.engine import GnConfig
+from .gx.runner import GnRunner
 
 log = logging.getLogger("harp")
 WEB_DIR = BASE_DIR / "web"
 
 
 SEND_TIMEOUT_S = 5.0     # länger hängendes Senden → Verbindung gilt als tot und wird geschlossen
+GN_SEND_INTERVAL_S = 0.5   # g³/g⁴-Frames ≈ 2 Hz
 MAX_QUEUED = 200         # mehr wartende Einzelnachrichten (Quittungen, Pong) → Client hängt
 
 
@@ -56,6 +60,8 @@ class Client:
         self._queue: deque[str] = deque()
         self._status: str | None = None
         self._frame: str | None = None
+        self._bin: bytes | None = None
+        self.view = "hist"
         self._wake = asyncio.Event()
         self._on_dead = on_dead
         self.task: asyncio.Task | None = None
@@ -85,7 +91,15 @@ class Client:
         self._frame = txt
         self._wake.set()
 
-    def _next(self) -> str | None:
+    def post_bin(self, data: bytes) -> None:
+        if self.closed:
+            return
+        if self._bin is not None:
+            self.dropped += 1
+        self._bin = data
+        self._wake.set()
+
+    def _next(self) -> str | bytes | None:
         if self._queue:
             return self._queue.popleft()
         if self._status is not None:
@@ -94,6 +108,9 @@ class Client:
         if self._frame is not None:
             t, self._frame = self._frame, None
             return t
+        if self._bin is not None:
+            b, self._bin = self._bin, None
+            return b
         return None
 
     async def _run(self) -> None:
@@ -103,7 +120,8 @@ class Client:
                 self._wake.clear()
                 while not self.closed and (txt := self._next()) is not None:
                     try:
-                        await asyncio.wait_for(self.ws.send_text(txt), timeout=self.send_timeout)
+                        await asyncio.wait_for(self.ws.send_bytes(txt) if isinstance(txt, bytes) else self.ws.send_text(txt),
+                                               timeout=self.send_timeout)
                     except asyncio.TimeoutError:
                         await self.kill(f"Senden hing länger als {self.send_timeout:g} s")
                         return
@@ -156,6 +174,84 @@ class HarpService:
         self.last_bytes = 0
         self.bytes_hist: list[tuple[float, int]] = []
         self.last_frame_info: dict[str, Any] = {}
+        # GX: Korrelationen höherer Ordnung im Worker-Prozess
+        self.gn = GnRunner(GN_SEND_INTERVAL_S)
+        self.gn_period_ps = 0.0
+        self.gn_last_sent = 0.0
+        self.gn_last_bytes = 0
+        self.gn_last: dict | None = None
+
+    def gn_start(self) -> None:
+        if self.cfg.gx_enabled and not self.gn.alive:
+            self.gn.start()
+
+    def _gn_channels(self) -> list[int]:
+        if not self.info:
+            return []
+        return list(range(self.info.first_channel, min(self.info.num_channels, 8) + 1))
+
+    def _gn_config(self) -> GnConfig:
+        s = self.settings
+        return GnConfig(channels=self._gn_channels(), combo3=tuple(s.combo3), combo4=tuple(s.combo4),
+                        range_ps=s.gn_range_ps, win_ps=s.gn_win_ps, period_ps=self.gn_period_ps)
+
+    def _gn_defaults(self, info) -> dict[str, Any]:
+        """Startwerte g(n): gepulst (regelmäßiger Sync) → ±2,5 Perioden, Fenster P/4 (≤ 10 ns); sonst ±25 ns, 2 ns."""
+        periodic = info.sync_rate_hz > 0 and (info.first_channel == 1 or info.k0_periodic)
+        self.gn_period_ps = 1e12 / info.sync_rate_hz if periodic else 0.0
+        P = self.gn_period_ps
+        ch = self._gn_channels()
+        data = [c for c in ch if c >= 1] or ch
+        c3 = (data + ch)[:3] if len(ch) >= 3 else [1, 2, 3]
+        if 0 in ch and len(ch) >= 3:
+            c3 = [0, ch[1], ch[2]]       # Herald K0 als Start
+        c4 = ch[:4] if len(ch) >= 4 else [1, 2, 3, 4]
+        if P > 0:
+            rng_ps, win = int(min(2.5 * P, 5e8)), int(min(P / 4, 10_000))
+        else:
+            rng_ps, win = 25_000, 2_000
+        return {"gn_range_ps": rng_ps, "gn_win_ps": win, "combo3": c3, "combo4": c4}
+
+    def gn_frame(self, view: str) -> bytes | None:
+        r = self.gn_last
+        if r is None:
+            return None
+        s = self.settings
+        tiles = [{"ch": t["ch"], "g": (None if t["g"] != t["g"] else round(float(t["g"]), 5)),
+                  "n": int(t["n"]), "err": (None if t["err"] is None else round(float(t["err"]), 5)),
+                  "kind": t.get("kind", "g")} for t in r["tiles"]]
+        st = r["stats"]
+        head = {"type": "gn", "view": view, "T_s": round(r["T_s"], 4), "tiles": tiles,
+                "combo3": list(s.combo3), "combo4": list(s.combo4), "range_ps": r["range_ps"],
+                "range4_ps": r["range4_ps"], "bw3_ps": r["bw3_ps"], "bw4_ps": r["bw4_ps"],
+                "n3": r["n3"], "n4": r["n4"], "period_ps": self.gn_period_ps, "win_ps": s.gn_win_ps,
+                "delays": {str(k): v for k, v in r["delays"].items()}, "cal_done": r["cal_done"],
+                "backend": r["backend"], "threads": self.gn.info.get("threads"),
+                "latency_ms": round(r.get("latency_s", 0) * 1000, 1),
+                "proc_mtags": round(st["tags"] / st["proc_s"] / 1e6, 2) if st.get("proc_s") else None,
+                "last_ms": round(st.get("last_ms", 0), 2), "backlog": r.get("backlog", 0),
+                "payload_bytes_prev": self.gn_last_bytes}
+        arrays: dict[str, np.ndarray] = {}
+        if view == "g3":
+            arrays["map3"] = r["map3"]
+        elif view == "g4":
+            arrays["cube4"] = r["cube4"]
+        return gxwire.encode(head, arrays)
+
+    def gn_broadcast(self) -> None:
+        cache: dict[str, bytes | None] = {}
+        for c in list(self.clients.values()):
+            v = c.view if c.view in ("g3", "g4") else "x"
+            if v not in cache:
+                cache[v] = self.gn_frame(v)
+                if cache[v] is not None and v != "x":
+                    self.gn_last_bytes = len(cache[v])
+            if cache[v] is not None:
+                c.post_bin(cache[v])
+
+    def gn_reset(self, full: bool) -> None:
+        self.gn.reset(full)
+        self.gn_last = None
 
     # ------------------------------------------------------------ Dateien/Quelle
     def list_files(self) -> list[dict]:
@@ -217,7 +313,11 @@ class HarpService:
             chans = list(range(info.first_channel, min(info.num_channels, 8) + 1))
             upd: dict[str, Any] = {"channels": chans} | self._start_binning(info)
             self.settings = Settings(**(self.settings.model_dump() | upd))
+            self.settings = Settings(**(self.settings.model_dump() | self._gn_defaults(info)))
             self.source.configure(self._acq_params())
+        self.gn.configure(self._gn_config(), keep_delays=False)
+        self.gn.recalibrate()          # neue Datei: Laufzeiten neu bestimmen
+        self.gn_last = None
         self.acc.reset(); self.cacc.reset()
         self.rates.reset()
         self.error = ""
@@ -263,6 +363,10 @@ class HarpService:
                 if fr.wrapped:  # Datei beginnt von vorn: Akkumulation und Verlauf neu beginnen
                     self.acc.reset(); self.cacc.reset()
                     self.rates.reset()
+                    self.gn_reset(True)   # Zeitachse springt zurück: Puffer leeren, Laufzeiten behalten
+                ev = getattr(fr, "events", None)
+                if ev is not None:
+                    self.gn.feed(ev[0], ev[1])
                 total = self.acc.add(fr)
                 if fr.corr is not None:
                     self.cacc.add_array(fr.corr, fr.meas_time_s)
@@ -271,6 +375,12 @@ class HarpService:
                 self.rates.add(fr.t_file_s, rates)
                 calc_ms = (time.monotonic() - t0) * 1000
                 await self.broadcast_frame(total, fr, rates, sync_rate, calc_ms)
+                if self.gn.poll() is not None:
+                    self.gn_last = self.gn.latest
+                now = time.monotonic()
+                if self.gn_last is not None and now - self.gn_last_sent >= GN_SEND_INTERVAL_S:
+                    self.gn_last_sent = now
+                    self.gn_broadcast()
                 dt = s.refresh_ms / 1000.0 - (time.monotonic() - t0)
                 await asyncio.sleep(max(0.0, dt))
         except asyncio.CancelledError:
@@ -353,6 +463,7 @@ class HarpService:
             "client_id": c.id if c else None,
             "hist_len": hist_len_from_code(self.settings.hist_len_code),
             "auth": bool(self.cfg.token),
+            "gn": {"enabled": self.gn.alive, "period_ps": self.gn_period_ps, **self.gn.info},
         }
 
     def post_status_all(self) -> None:
@@ -393,9 +504,14 @@ class HarpService:
         elif cmd == "reset":
             self.acc.reset(); self.cacc.reset()
             self.rates.reset()
+            self.gn_reset(False)
+        elif cmd == "gn_recal":
+            self.gn.recalibrate()
+            self.gn_last = None
         elif cmd == "rewind":
             async with self.src_lock:
                 await asyncio.to_thread(self.source.rewind)
+            self.gn_reset(True)
             self.acc.reset(); self.cacc.reset()
             self.rates.reset()
             self.error = ""
@@ -419,6 +535,10 @@ class HarpService:
                     self.cacc.reset()
             self.acc.configure(new.mode, new.window_frames)
             self.cacc.configure(new.mode, new.window_frames)
+            gkeys = ("gn_range_ps", "gn_win_ps", "combo3", "combo4")
+            if any(getattr(new, k) != getattr(old, k) for k in gkeys):
+                self.gn.configure(self._gn_config(), keep_delays=True)
+                self.gn_last = None
 
 
 def create_app(cfg: Config | None = None) -> FastAPI:
@@ -427,6 +547,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        svc.gn_start()
         try:
             if cfg.default_file and (cfg.data_dir / cfg.default_file).is_file():
                 await svc.open_file(cfg.default_file)
@@ -440,6 +561,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         yield
         await svc.stop()
         svc.source.close()
+        svc.gn.stop()
 
     app = FastAPI(title="ExSE Harp GX Mobil", version=__version__, lifespan=lifespan)
     app.state.svc = svc
@@ -585,6 +707,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                     ack = await svc.handle_command(c, msg)
                     c.post(json.dumps(ack))
                     svc.post_status_all()
+                elif msg.get("type") == "view":
+                    c.view = str(msg.get("v", ""))[:8]
+                    if c.view in ("g3", "g4") and svc.gn_last is not None:
+                        f = svc.gn_frame(c.view)
+                        if f:
+                            c.post_bin(f)
                 elif msg.get("type") == "ping":
                     c.post(json.dumps({"type": "pong", "t": msg.get("t")}))
         except (WebSocketDisconnect, RuntimeError):

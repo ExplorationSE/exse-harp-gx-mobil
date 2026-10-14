@@ -21,17 +21,31 @@
 <main>
   <section class="card hist-card">
     <div class="card-head">
-      <button id="viewBtn" class="viewbtn" type="button" title="Ansicht wechseln: Histogramm / Zeitverlauf / Korrelation" aria-label="Ansicht wechseln">
-        <span data-v="hist" class="on"><em class="lg">Histogramm</em><em class="sh">Histo</em></span><span data-v="corr"><em class="lg">Korrelation</em><em class="sh">g²</em></span><span data-v="trace"><em class="lg">Zeitverlauf</em><em class="sh">Zeit</em></span><i aria-hidden="true">⇄</i></button>
+      <button id="viewBtn" class="viewbtn" type="button" title="Ansicht wechseln: Histogramm / g² / g³ / g⁴ / Zeitverlauf" aria-label="Ansicht wechseln">
+        <span data-v="hist" class="on"><em class="lg">Histogramm</em><em class="sh">Histo</em></span><span data-v="corr"><em class="lg">g²</em><em class="sh">g²</em></span><span data-v="g3"><em class="lg">g³</em><em class="sh">g³</em></span><span data-v="g4"><em class="lg">g⁴</em><em class="sh">g⁴</em></span><span data-v="trace"><em class="lg">Zeitverlauf</em><em class="sh">Zeit</em></span><i aria-hidden="true">⇄</i></button>
       <div id="chanbox" class="chanbox" role="group" aria-label="Kanäle ein-/ausblenden"></div>
     </div>
     <div class="chartwrap">
       <div id="histPlot" class="plot"></div>
       <div id="tracePlot" class="plot" hidden></div>
       <div id="corrPlot" class="plot" hidden></div>
+      <div id="gnPlot" class="plot" hidden><canvas id="gnCanvas"></canvas><div id="gnCut"></div></div>
       <div id="chartHint" class="charthint" hidden></div>
     </div>
     <div id="readout" class="readout">&nbsp;</div>
+    <div id="gnbar" class="gnbar" hidden>
+      <div class="gnrow">
+        <select id="gnCombo" aria-label="Kanal-Kombination"></select>
+        <div id="gnMode" class="seg" role="group" aria-label="Darstellung"></div>
+      </div>
+      <div id="gnSliderRow" class="gnrow" hidden>
+        <label class="sl">τ₃ <input id="gnTau3" type="range" min="0" max="31" step="1"><output id="gnTau3v"></output></label>
+      </div>
+      <div class="gnrow gntiles">
+        <div id="gnBig" class="gnbig"><div class="k">g(0)</div><div class="v">–</div><div class="e"></div></div>
+        <div id="gnList" class="gnlist"></div>
+      </div>
+    </div>
   </section>
 
 
@@ -64,7 +78,10 @@
         <option>128</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
       <label>Referenzkanal (g²)<select id="ref_channel"></select></label>
       <label>Binbreite g²<select id="corr_binning"></select></label>
+      <label>Bereich g³/g⁴ (±)<select id="gn_range_ps"></select></label>
+      <label>Koinzidenzfenster g(0)<select id="gn_win_ps"></select></label>
       <label class="chk"><input id="loop" type="checkbox"> Datei wiederholen</label>
+      <button id="bRecal" class="b" type="button" title="Kabel-Laufzeiten aus den g²-Kurven neu bestimmen">Laufzeiten kalibrieren</button>
     </div>
   </section>
 

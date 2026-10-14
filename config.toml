@@ -36,3 +36,7 @@ loop = true
 
 [logging]
 log_dir = "logs"
+
+[gx]
+# Korrelationen höherer Ordnung (g³/g⁴) im eigenen Worker-Prozess berechnen
+enabled = true

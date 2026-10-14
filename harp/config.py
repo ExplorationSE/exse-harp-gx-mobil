@@ -1,6 +1,7 @@
 """Konfiguration aus config.toml laden."""
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,6 +23,7 @@ class Config:
     snapi_base_window_s: float = 0.05
     autostart: bool = True
     defaults: dict = field(default_factory=dict)
+    gx_enabled: bool = field(default_factory=lambda: not os.environ.get("HARP_GX_DISABLE"))  # g(n)-Worker
 
 
 def load_config(path: str | Path | None = None) -> Config:
@@ -47,4 +49,5 @@ def load_config(path: str | Path | None = None) -> Config:
     ld = Path(d.get("logging", {}).get("log_dir", str(cfg.log_dir)))
     cfg.log_dir = ld if ld.is_absolute() else (BASE_DIR / ld)
     cfg.defaults = d.get("defaults", {})
+    cfg.gx_enabled = bool(d.get("gx", {}).get("enabled", cfg.gx_enabled))
     return cfg

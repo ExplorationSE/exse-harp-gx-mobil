@@ -1,5 +1,17 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.0 – 14.10.2026
+
+- Live-Rechenkern `harp/gx` (Numba, parallel; NumPy-Rückfall mit identischen Ergebnissen, erzwingbar mit
+  `HARP_GX_NO_NUMBA=1`): gleitendes Fenster, blockweise Überlappung, alle Kanalpaare/-tripel/-quadrupel,
+  cw-Zufallsnormierung und gepulste Seitenpeak-Normierung, Kabellaufzeiten mit Auto-Kalibrierung (nach 2 s).
+- Rechnung in eigenem Worker-Prozess; komprimierte Binär-Frames (`GXF1`, zlib, log-quantisiert) mit ca. 2 Hz.
+- Neue Ansichten: Histo | g² | g³ | g⁴ | Zeit. g³: Log-Heatmap (τ1,τ2) mit Schnitten Diagonale, τ1=0, τ2=0.
+  g⁴: τ3-Schieberegler (2D-Schnitt), Diagonalkurve, große Kachel g⁴(0,0,0). Kanalkombinations-Auswahl.
+- Neue Einstellungen `gn_range_ps`, `gn_win_ps`, `combo3`, `combo4`; Befehl „Neu kalibrieren“.
+- Tests `tests/test_gx_engine.py` (Kerne, Blockinvarianz, Abgleich mit `harp/gn.py`, Normierung, Kalibrierung,
+  Binärformat, Worker, Server). Service-Worker-Cache r2.
+
 ## 0.1.0 – 14.10.2026
 
 Neues Projekt **ExSE Harp GX Mobil**, abgeleitet von ExSE Harp Mobil 1.0.6 (Commit `ffec0b3`, frische Git-Historie).

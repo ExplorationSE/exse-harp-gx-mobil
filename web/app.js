@@ -21,8 +21,9 @@ function pow10Label(v) {
 function fmtNum(v) { const a = Math.abs(v); return a >= 1e6 ? (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "M" : a >= 1e3 ? (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + "k" : String(Math.round(v * 100) / 100); }
 function fmtCount(v) { return v >= 1e4 ? v.toExponential(2).replace("e+", "e") : String(v); }
 const $ = (id) => document.getElementById(id);
+const VIEWS = ["hist", "corr", "g3", "g4", "trace"];   // Reihenfolge im Umschalter
 const token = new URLSearchParams(location.search).get("token") || "";
-const S = { ws: null, status: null, mine: false, hidden: loadHidden(), view: ["hist", "trace", "corr"].includes(localStorage.getItem("harp.view")) ? localStorage.getItem("harp.view") : "hist",
+const S = { ws: null, status: null, mine: false, hidden: loadHidden(), view: VIEWS.includes(localStorage.getItem("harp.view")) ? localStorage.getItem("harp.view") : "hist",
   lp: {}, hist: null, trace: null, histKey: "",
   traceKey: "", tr: { t: [], r: [] }, lastT: -1, frames: 0, fpsT: performance.now(), fps: 0, cmdId: 0,
   lastFrame: null, pendingCtrl: null };
@@ -82,7 +83,8 @@ function connect() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws${token ? "?token=" + encodeURIComponent(token) : ""}`);
   S.ws = ws;
-  ws.onopen = () => { C.lastRx = Date.now(); C.everOpen = true; setConnUI(true); };
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { C.lastRx = Date.now(); C.everOpen = true; setConnUI(true); sendView(); };
   ws.onclose = (e) => {
     if (S.ws !== ws) return;
     S.ws = null; lostConnection();
@@ -91,6 +93,7 @@ function connect() {
   };
   ws.onmessage = (ev) => {
     C.lastRx = Date.now();
+    if (ev.data instanceof ArrayBuffer) { onBinary(ev.data).catch((e) => console.warn("GX-Frame", e)); return; }
     const m = JSON.parse(ev.data);
     if (m.type === "frame") onFrame(m, ev.data.length);
     else if (m.type === "status") onStatus(m);
@@ -191,6 +194,7 @@ function fillControls(st) {
   if (document.activeElement !== $("window_frames")) $("window_frames").value = s.window_frames;
   $("window_frames").disabled = s.mode !== "sliding";
   $("loop").checked = s.loop;
+  fillGnControls(st);
   buildChanButtons(ids);
   renderInfo();
 }
@@ -207,17 +211,28 @@ function bindControls() {
   $("corr_binning").onchange = (e) => command("set", { corr_binning: parseInt(e.target.value) });
   $("loop").onchange = (e) => command("set", { loop: e.target.checked });
   $("viewBtn").onclick = (e) => {   // Tippen auf ein Segment wählt es; sonst zur nächsten Ansicht
-    const sp = e.target.closest("span[data-v]"), order = ["hist", "corr", "trace"];
-    setView(sp ? sp.dataset.v : order[(order.indexOf(S.view) + 1) % 3]);
+    const sp = e.target.closest("span[data-v]");
+    setView(sp ? sp.dataset.v : VIEWS[(VIEWS.indexOf(S.view) + 1) % VIEWS.length]);
   };
   $("ctrlBtn").onclick = () => send(S.mine ? "release_control" : "acquire_control");
+  $("gn_range_ps").onchange = (e) => command("set", { gn_range_ps: parseInt(e.target.value) });
+  $("gn_win_ps").onchange = (e) => command("set", { gn_win_ps: parseInt(e.target.value) });
+  $("bRecal").onclick = () => command("gn_recal");
+  $("gnCombo").onchange = (e) => command("set", { [S.view === "g4" ? "combo4" : "combo3"]: e.target.value.split(",").map(Number) });
+  $("gnTau3").oninput = (e) => { G.tau3 = +e.target.value; drawGn(); };
+  $("gnCanvas").addEventListener("pointerdown", gnPick);
+  $("gnCanvas").addEventListener("pointermove", (e) => { if (e.buttons) gnPick(e); });
 }
 // Ansicht im großen Diagramm: Histogramm (log) oder Zählraten-Zeitverlauf (linear, kcps)
 function setView(v) {
   S.view = v; try { localStorage.setItem("harp.view", v); } catch (e) { /* privat */ }
   document.querySelectorAll("#viewBtn span").forEach((x) => x.classList.toggle("on", x.dataset.v === v));
   $("histPlot").hidden = v !== "hist"; $("tracePlot").hidden = v !== "trace"; $("corrPlot").hidden = v !== "corr";
-  $("readout").innerHTML = "&nbsp;";
+  const gn = v === "g3" || v === "g4";
+  $("gnPlot").hidden = !gn; $("gnbar").hidden = !gn;
+  $("readout").innerHTML = "&nbsp;"; $("readout").dataset.auto = "1";
+  sendView();
+  if (gn) { buildGnBar(); drawGn(); }
   updateHint();
   onResize(0);
 }
@@ -323,6 +338,7 @@ function updateHint() {
     txt = "Kein Histogramm verfügbar – bitte „Zeit“ oder „g²“ wählen.";
   else if (m && S.view === "corr" && !m.corr) txt = "Korrelation mit dieser Datenquelle nicht verfügbar.";
   else if (m && S.view === "corr" && m.corr && !m.corr_channels.length) txt = "Keine Kanäle außer dem Referenzkanal.";
+  else if (S.view === "g3" || S.view === "g4") txt = gnHint();
   h.textContent = txt; h.hidden = !txt;
 }
 function makeTrace(ids) {
@@ -349,7 +365,7 @@ function drawTrace(m) {
   S.trace.setData(cols);
 }
 // Breite des sichtbaren Diagrammbereichs (auch wenn die andere Ansicht gerade versteckt ist)
-function chartBox() { return $({ hist: "histPlot", trace: "tracePlot", corr: "corrPlot" }[S.view]); }
+function chartBox() { return $({ hist: "histPlot", trace: "tracePlot", corr: "corrPlot", g3: "gnPlot", g4: "gnPlot" }[S.view]); }
 function traceReadout(u) {
   if (S.view !== "trace") return;
   const i = u.cursor.idx, r = $("readout");
@@ -376,6 +392,12 @@ function renderInfo() {
   if (m) rows.push(["Frame", `#${m.seq} · t = ${m.t_file_s.toFixed(2)} s · ${S.fps.toFixed(1)} fps`],
     ["Anzeige", `${m.n_bins} von ${m.n_bins_full} Bins (×${m.rebin_factor}) à ${(m.bin_width_ps / 1000).toFixed(3)} ns`],
     ["Datenmenge", `${fmtBytes(S.lastBytes || 0)}/Frame · ${m.payload_kBps.toFixed(1)} kB/s · Server ${m.calc_ms} ms`]);
+  const gh = G.head;
+  if (gh) {
+    const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
+    rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_done ? "" : " (Kalibrierung läuft)")],
+      ["Rechenkern", `${gh.backend}${gh.threads ? " · " + gh.threads + " Threads" : ""} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame`]);
+  }
   rows.push(["Clients", String(st.clients ?? "–")]);
   if (st.version) $("appver").textContent = "ExSE Harp GX Mobil " + st.version;
   $("infolist").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
@@ -388,6 +410,207 @@ function onFrame(m, len) {
   drawHist(m); drawRates(m); drawTrace(m);
   if (++infoTick % 3 === 0) renderInfo();
 }
+// ------------------------------------------------------------------ GX: g³ / g⁴
+// Binär-Frame: "GXF1" | uint32 Kopf-Länge | JSON-Kopf | deflate(uint16-Felder, log-kodiert)
+const G = { head: null, map3: null, cube4: null, bytes: 0, tau3: null, cut: null, cutKey: "",
+  mode3: localStorage.getItem("harp.gn3") || "map", mode4: localStorage.getItem("harp.gn4") || "slice", geom: null };
+const VIRIDIS = [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
+function sendView() { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify({ type: "view", v: S.view })); }
+async function inflate(u8) {
+  if (typeof DecompressionStream === "undefined") throw new Error("Browser ohne DecompressionStream");
+  const st = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate"));
+  return await new Response(st).arrayBuffer();
+}
+async function onBinary(buf) {
+  const dv = new DataView(buf);
+  if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== "GXF1") return;
+  const n = dv.getUint32(4, true);
+  const h = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, n)));
+  const raw = await inflate(new Uint8Array(buf, 8 + n));
+  for (const m of h.arrays) {
+    const cnt = m.shape.reduce((a, b) => a * b, 1), q = new Uint16Array(raw, m.offset, cnt), f = new Float32Array(cnt);
+    for (let i = 0; i < cnt; i++) f[i] = q[i] ? 10 ** ((q[i] - 1) / 65534 * h.log_span + h.log_lo) : NaN;
+    G[m.name] = { v: f, nb: m.shape[0] };
+  }
+  G.head = h; G.bytes = buf.byteLength;
+  if (S.view === "g3" || S.view === "g4") { buildGnBar(); drawGn(); }
+}
+function fillGnControls(st) {
+  const s = st.settings, info = st.info || {};
+  const opt = (id, vals, cur) => {
+    const el = $(id), list = vals.includes(cur) ? vals : [...vals, cur].sort((a, b) => a - b), k = list.join(",");
+    if (el.dataset.k !== k) { el.innerHTML = list.map((v) => `<option value="${v}">${fmtWidth(v)}</option>`).join(""); el.dataset.k = k; }
+    if (document.activeElement !== el) el.value = String(cur);
+  };
+  opt("gn_range_ps", [5e3, 1e4, 25e3, 5e4, 1e5, 25e4, 1e6, 25e5, 1e7, 25e6, 1e8], s.gn_range_ps);
+  opt("gn_win_ps", [100, 200, 500, 1e3, 2e3, 4e3, 6e3, 1e4, 2e4, 1e5, 5e5, 1e6, 2e6], s.gn_win_ps);
+  G.ids = chanIds(info.first_channel ?? 1, Math.min(info.num_channels || 4, 8));
+  G.combo3 = s.combo3; G.combo4 = s.combo4;
+  if (S.view === "g3" || S.view === "g4") buildGnBar();
+}
+function combos(ids, k) {
+  const out = [], rec = (st, acc) => { if (acc.length === k) { out.push(acc.slice()); return; }
+    for (let i = st; i < ids.length; i++) { acc.push(ids[i]); rec(i + 1, acc); acc.pop(); } };
+  rec(0, []); return out;
+}
+const sup = (o) => (o === 3 ? "³" : o === 4 ? "⁴" : "²");
+function buildGnBar() {
+  const o = S.view === "g4" ? 4 : 3, ids = G.ids || [1, 2, 3, 4], cur = (o === 3 ? G.combo3 : G.combo4) || [];
+  const sel = $("gnCombo"), list = combos(ids, o), key = o + "|" + ids.join(",") + "|" + cur.join(",");
+  if (sel.dataset.k !== key) {
+    const all = list.map((c) => c.join(","));
+    if (cur.length && !all.includes(cur.join(","))) all.unshift(cur.join(","));
+    sel.innerHTML = all.length ? all.map((c) => `<option value="${c}">${c.split(",").map((x) => "K" + x).join("·")}</option>`).join("")
+      : `<option>zu wenige Kanäle</option>`;
+    sel.disabled = !list.length; sel.value = cur.join(","); sel.dataset.k = key;
+  }
+  const modes = o === 3 ? [["map", "Karte"], ["diag", "Diag."], ["t1", "τ₁=0"], ["t2", "τ₂=0"]] : [["slice", "Schnitt τ₃"], ["diag", "Diagonale"]];
+  const cm = o === 3 ? G.mode3 : G.mode4, seg = $("gnMode"), mk = o + cm;
+  if (seg.dataset.k !== mk) {
+    seg.innerHTML = modes.map(([v, t]) => `<button type="button" data-m="${v}" class="${v === cm ? "on" : ""}">${t}</button>`).join("");
+    seg.querySelectorAll("button").forEach((b) => b.onclick = () => {
+      if (o === 3) G.mode3 = b.dataset.m; else G.mode4 = b.dataset.m;
+      try { localStorage.setItem(o === 3 ? "harp.gn3" : "harp.gn4", b.dataset.m); } catch (e) { /* privat */ }
+      buildGnBar(); drawGn(); });
+    seg.dataset.k = mk;
+  }
+  $("gnSliderRow").hidden = !(o === 4 && G.mode4 === "slice");
+}
+function gnHint() {
+  const h = G.head;
+  if (!h) return "Warte auf g³/g⁴-Daten …";
+  if (S.view === "g3" && !h.n3) return "Noch keine Tripel im Bereich – Bereich vergrößern oder länger messen.";
+  if (S.view === "g4" && !h.n4) return "Noch keine Quadrupel im Bereich – Bereich vergrößern oder länger messen.";
+  return "";
+}
+function viridis(t) {
+  const x = Math.min(1, Math.max(0, t)) * (VIRIDIS.length - 1), i = Math.min(VIRIDIS.length - 2, Math.floor(x)), f = x - i;
+  return VIRIDIS[i].map((c, k) => Math.round(c + (VIRIDIS[i + 1][k] - c) * f));
+}
+function niceStep(r) { const p = 10 ** Math.floor(Math.log10(r)), m = r / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+function fmtTau(ns) { return Math.abs(ns) >= 1000 ? +(ns / 1000).toPrecision(3) + "µ" : String(+ns.toPrecision(3)); }
+function tauUnit(Rns) { return Rns >= 2000 ? ["µs", 1000] : ["ns", 1]; }
+// Heatmap: vals[x*nb+y], x → τ1 (rechts), y → τ2 (oben); symmetrische Ränder (Farbskala rechts = Achse links)
+function drawHeat(vals, nb, Rps, xl, yl) {
+  const cv = $("gnCanvas"), dpr = window.devicePixelRatio || 1, W = plotWidth($("gnPlot")), Hmax = histHeight();
+  const narrow = W < 500, m = narrow ? 42 : 50, top = 8, bot = 40, side = Math.max(60, Math.min(W - 2 * m, Hmax - top - bot));
+  const H = side + top + bot;   // quadratische Karte, keine Leerfläche darunter
+  cv.style.height = H + "px"; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+  const x0 = Math.round((W - side) / 2), y0 = top;
+  let mx = -Infinity, mn = Infinity;
+  for (const v of vals) if (v > 0) { if (v > mx) mx = v; if (v < mn) mn = v; }
+  if (!(mx > 0)) { mx = 10; mn = 0.1; }
+  const hi = Math.log10(mx), lo = Math.max(Math.log10(mn), hi - 3), span = Math.max(hi - lo, 1e-6);
+  const img = new ImageData(nb, nb);
+  for (let x = 0; x < nb; x++) for (let y = 0; y < nb; y++) {
+    const v = vals[x * nb + y], p = ((nb - 1 - y) * nb + x) * 4;
+    if (v > 0) { const [r, g, b] = viridis((Math.log10(v) - lo) / span); img.data[p] = r; img.data[p + 1] = g; img.data[p + 2] = b; img.data[p + 3] = 255; }
+    else { img.data[p] = 11; img.data[p + 1] = 18; img.data[p + 2] = 34; img.data[p + 3] = 255; }
+  }
+  const off = document.createElement("canvas"); off.width = nb; off.height = nb; off.getContext("2d").putImageData(img, 0, 0);
+  c.imageSmoothingEnabled = false; c.drawImage(off, x0, y0, side, side);
+  c.strokeStyle = "rgba(148,163,184,0.35)"; c.strokeRect(x0 + 0.5, y0 + 0.5, side - 1, side - 1);
+  // Achsen
+  const Rns = Rps / 1000, [unit, div] = tauUnit(Rns), st = niceStep(Rns / div / 2.2) * div;
+  c.font = AXIS.font; c.fillStyle = AXIS.stroke; c.textAlign = "center"; c.textBaseline = "top";
+  for (let t = -Math.floor(Rns / st) * st; t <= Rns + 1e-9; t += st) {
+    const px = x0 + (t + Rns) / (2 * Rns) * side, py = y0 + side - (t + Rns) / (2 * Rns) * side;
+    c.fillText(fmtTau(t / div).replace("µ", ""), px, y0 + side + 4);
+    c.save(); c.textAlign = "right"; c.textBaseline = "middle"; c.fillText(fmtTau(t / div).replace("µ", ""), x0 - 5, py); c.restore();
+    c.strokeStyle = "rgba(148,163,184,0.10)"; c.beginPath(); c.moveTo(px, y0); c.lineTo(px, y0 + side); c.moveTo(x0, py); c.lineTo(x0 + side, py); c.stroke();
+  }
+  c.font = AXIS.labelFont; c.fillText(`${xl} / ${unit}`, x0 + side / 2, y0 + side + 20);
+  c.save(); c.translate(x0 - m + 9, y0 + side / 2); c.rotate(-Math.PI / 2); c.textBaseline = "middle"; c.fillText(`${yl} / ${unit}`, 0, 0); c.restore();
+  // Farbskala (rechter Rand)
+  const bx = x0 + side + 7, bw = 8;
+  for (let i = 0; i < side; i++) { const [r, g, b] = viridis(1 - i / side); c.fillStyle = `rgb(${r},${g},${b})`; c.fillRect(bx, y0 + i, bw, 1.5); }
+  c.font = AXIS.font; c.fillStyle = AXIS.stroke; c.textAlign = "left"; c.textBaseline = "middle";
+  for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) c.fillText(pow10Label(10 ** e), bx + bw + 3, y0 + side - (e - lo) / span * side);
+  G.geom = { x0, y0, side, nb, Rps, vals };
+}
+function gnPick(e) {
+  const g = G.geom; if (!g) return;
+  const r = $("gnCanvas").getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const x = Math.floor((px - g.x0) / g.side * g.nb), y = Math.floor((g.y0 + g.side - py) / g.side * g.nb);
+  if (x < 0 || y < 0 || x >= g.nb || y >= g.nb) return;
+  const bw = 2 * g.Rps / g.nb, t1 = ((x + 0.5) * bw - g.Rps) / 1000, t2 = ((y + 0.5) * bw - g.Rps) / 1000, v = g.vals[x * g.nb + y];
+  $("readout").dataset.auto = "0";
+  $("readout").innerHTML = `<b>τ₁ = ${t1.toFixed(2)} ns · τ₂ = ${t2.toFixed(2)} ns</b> · g = ${v > 0 ? v.toPrecision(3) : "–"}`;
+}
+function drawCut(xs, ys, xlab, key) {
+  const el = $("gnCut");
+  if (!G.cut || G.cutKey !== key) {
+    el.innerHTML = ""; G.cutKey = key;
+    const ysz = chartBox().clientWidth < 500 ? 34 : 40;
+    G.cut = new uPlot({ width: plotWidth($("gnPlot")), height: histHeight(), pxAlign: false, padding: [8, ysz, 0, 0],
+      legend: { show: false }, cursor: { points: { size: 7 } },
+      series: [{}, { stroke: "#38bdf8", width: 1.8, points: { show: true, size: 3 }, spanGaps: false }],
+      scales: { x: { time: false, range: (u, mn, mx) => [Math.min(mn, -mx), Math.max(mx, -mn)] }, y: { distr: 3, log: 10,
+        range: (u, mn, mx) => [10 ** Math.floor(Math.log10(mn > 0 ? mn : 0.1)), 10 ** Math.ceil(Math.log10(mx > 0 ? mx * 1.3 : 10))] } },
+      axes: [{ ...AXIS, label: xlab, labelSize: 16, labelGap: 0, size: 30, gap: 3, values: (u, sp) => sp.map((v) => String(+v.toFixed(2))) },
+             { ...AXIS, size: ysz, gap: 3, values: (u, sp) => sp.map(pow10Label) }],
+      hooks: { setCursor: [(u) => { const i = u.cursor.idx; if (i != null && u.data[1][i] != null && ($("readout").dataset.auto = "0"))
+        $("readout").innerHTML = `<b>τ = ${u.data[0][i].toFixed(2)} ns</b> · g = ${u.data[1][i].toPrecision(3)}`; }] } }, [[]], el);
+  }
+  G.cut.setData([xs, ys.map((v) => (v > 0 ? v : null))]);
+}
+function drawGn() {
+  const h = G.head, v3 = S.view === "g3";
+  updateHint(); drawGnTiles();
+  if (!h) return;
+  const o = v3 ? 3 : 4, cmb = v3 ? h.combo3 : h.combo4, K = (i) => "K" + cmb[i];
+  const R = v3 ? h.range_ps : h.range4_ps, d = v3 ? G.map3 : G.cube4;
+  const mode = v3 ? G.mode3 : G.mode4, showMap = v3 ? mode === "map" : mode === "slice";
+  $("gnCanvas").hidden = !showMap; $("gnCut").hidden = showMap;
+  if (!d) return;
+  const nb = d.nb, bw = 2 * R / nb, tau = (i) => ((i + 0.5) * bw - R) / 1000, i0 = Math.floor(nb / 2);
+  const xl1 = `τ₁ = t(${K(1)})−t(${K(0)})`, xl2 = `τ₂ = t(${K(2)})−t(${K(0)})`;
+  if (v3) {
+    if (mode === "map") { drawHeat(d.v, nb, R, "τ₁", "τ₂"); }
+    else {
+      const xs = [], ys = [];
+      for (let i = 0; i < nb; i++) { xs.push(tau(i)); ys.push(mode === "diag" ? d.v[i * nb + i] : mode === "t1" ? d.v[i0 * nb + i] : d.v[i * nb + i0]); }
+      drawCut(xs, ys, mode === "diag" ? "τ₁ = τ₂ / ns" : mode === "t1" ? xl2.split(" =")[0] + " / ns (τ₁ = 0)" : xl1.split(" =")[0] + " / ns (τ₂ = 0)", "3" + mode);
+    }
+  } else {
+    const sl = $("gnTau3");
+    if (+sl.max !== nb - 1) { sl.max = String(nb - 1); }
+    if (G.tau3 == null || G.tau3 >= nb) G.tau3 = i0;
+    sl.value = String(G.tau3);
+    $("gnTau3v").textContent = `${tau(G.tau3).toFixed(2)} ns`;
+    if (mode === "slice") {
+      const sv = new Float32Array(nb * nb), z = G.tau3;
+      for (let x = 0; x < nb; x++) for (let y = 0; y < nb; y++) sv[x * nb + y] = d.v[(x * nb + y) * nb + z];
+      drawHeat(sv, nb, R, "τ₁", "τ₂");
+    } else {
+      const xs = [], ys = [];
+      for (let i = 0; i < nb; i++) { xs.push(tau(i)); ys.push(d.v[(i * nb + i) * nb + i]); }
+      drawCut(xs, ys, "τ₁ = τ₂ = τ₃ / ns", "4diag");
+    }
+  }
+  if ($("readout").dataset.auto !== "0") {
+    $("readout").innerHTML = `${o === 3 ? "Tripel" : "Quadrupel"} ${fmtCompact(o === 3 ? h.n3 : h.n4)} · ${h.T_s.toFixed(1)} s · Bin ${fmtWidth(2 * R / nb)}`;
+  }
+}
+function drawGnTiles() {
+  const h = G.head, o = S.view === "g4" ? 4 : 3, big = $("gnBig");
+  if (!h) { big.querySelector(".v").textContent = "–"; $("gnList").innerHTML = ""; return; }
+  const cmb = (o === 3 ? h.combo3 : h.combo4).slice().sort((a, b) => a - b).join(",");
+  const lab = (t) => (t.kind === "g2h" ? `g²ₕ K${t.ch[0]}|K${t.ch[1]}K${t.ch[2]}` : `K${t.ch.join("K")}`);
+  const fmtG = (g) => (g == null ? "–" : g >= 100 ? g.toFixed(0) : g >= 10 ? g.toFixed(1) : g.toFixed(g < 0.1 ? 3 : 2));
+  const mine = h.tiles.filter((t) => t.ch.length === o && t.kind !== "g2h");
+  const cur = mine.find((t) => t.ch.join(",") === cmb);
+  big.querySelector(".k").textContent = `g${sup(o)}(0${o === 3 ? ",0" : ",0,0"})`;
+  big.querySelector(".v").textContent = cur ? fmtG(cur.g) : "–";
+  big.querySelector(".e").textContent = cur ? `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}` : "";
+  big.title = h.period_ps > 0 ? "Seitenpeak-normiert (gepulst)" : "auf Zufallskoinzidenzen normiert (Dauerstrich)";
+  const extra = o === 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];
+  $("gnList").innerHTML = [...extra, ...mine].map((t) =>
+    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}" title="n = ${t.n}">${lab(t)} <b>${fmtG(t.g)}</b></div>`).join("")
+    + `<div class="muted" title="Koinzidenzfenster">w ${fmtWidth(h.win_ps)}${h.period_ps > 0 ? " · Seitenpeaks" : ""}</div>`;
+}
+
 let resizeT = 0;
 function onResize(delay) {
   clearTimeout(resizeT);
@@ -395,6 +618,8 @@ function onResize(delay) {
     const w = plotWidth(chartBox()), h = histHeight();
     for (const p of Object.values(S.lp)) if (p.u) p.u.setSize({ width: w, height: h });
     if (S.trace) S.trace.setSize({ width: w, height: h });
+    if (G.cut) G.cut.setSize({ width: w, height: h });
+    if (S.view === "g3" || S.view === "g4") drawGn();
   }, typeof delay === "number" ? delay : 80);
 }
 window.addEventListener("resize", () => onResize());

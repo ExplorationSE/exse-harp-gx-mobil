@@ -2,6 +2,8 @@
 fastapi>=0.110,<1
 uvicorn[standard]>=0.29,<1
 numpy>=1.26
+# GX-Rechenkern (JIT, alle Kerne); fehlt es, rechnet ein langsamerer NumPy-Ersatz
+numba>=0.61
 qrcode>=7.4
 # Tests (reines Python)
 pytest>=8

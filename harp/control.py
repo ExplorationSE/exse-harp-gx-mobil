@@ -21,6 +21,8 @@ LIMITS = {
     "window_frames": (2, 300),
     "display_points": (64, 8192),
     "corr_binning": (0, 24),
+    "gn_range_ps": (1_000, 500_000_000),
+    "gn_win_ps": (10, 100_000_000),
 }
 
 
@@ -44,6 +46,21 @@ class Settings(BaseModel):
     ref_channel: int = Field(1, ge=0, le=64, description="Referenzkanal der Kreuzkorrelation")
     corr_binning: int = Field(9, ge=LIMITS["corr_binning"][0], le=LIMITS["corr_binning"][1],
                               description="Korrelation: Binbreite = Basis × 2^n (T3: 1 ps, T2: Makrozeit)")
+    # GX: Korrelationen höherer Ordnung
+    gn_range_ps: int = Field(25_000, ge=LIMITS["gn_range_ps"][0], le=LIMITS["gn_range_ps"][1],
+                             description="g³/g⁴-Karten: Bereich ±range (ps)")
+    gn_win_ps: int = Field(2_000, ge=LIMITS["gn_win_ps"][0], le=LIMITS["gn_win_ps"][1],
+                           description="Koinzidenzfenster der g(n)-Kacheln (Breite, ps)")
+    combo3: list[int] = Field(default_factory=lambda: [1, 2, 3], description="g³: Start, Kanal τ1, Kanal τ2")
+    combo4: list[int] = Field(default_factory=lambda: [1, 2, 3, 4], description="g⁴: Start, τ1, τ2, τ3")
+
+    @field_validator("combo3", "combo4")
+    @classmethod
+    def _combo(cls, v: list[int], info) -> list[int]:
+        n = 3 if info.field_name == "combo3" else 4
+        if len(v) != n or len(set(v)) != n or any(not 0 <= c <= 64 for c in v):
+            raise ValueError(f"{n} verschiedene Kanäle erforderlich")
+        return list(v)
 
     @field_validator("channels")
     @classmethod
@@ -68,7 +85,7 @@ class CommandError(ValueError):
 
 
 ALLOWED_CMDS = {"start", "stop", "reset", "set", "open_file", "acquire_control", "release_control",
-                "rewind"}
+                "rewind", "gn_recal"}
 
 
 def validate_set(current: Settings, params: dict, num_channels: int, max_binning: int,
@@ -90,6 +107,11 @@ def validate_set(current: Settings, params: dict, num_channels: int, max_binning
         raise CommandError(f"Kanal {bad} nicht vorhanden (Quelle hat {num_channels} Kanäle)")
     if not first_channel <= new.ref_channel <= num_channels:
         raise CommandError(f"Referenzkanal {new.ref_channel} nicht vorhanden (Quelle hat {num_channels} Kanäle)")
+    for name in ("combo3", "combo4"):
+        if getattr(new, name) != getattr(current, name):
+            bad = [c for c in getattr(new, name) if c > num_channels or c < first_channel]
+            if bad:
+                raise CommandError(f"{name}: Kanal {bad} nicht vorhanden")
     if new.binning > max_binning:
         raise CommandError(f"binning > {max_binning} für diese Quelle nicht sinnvoll")
     return new

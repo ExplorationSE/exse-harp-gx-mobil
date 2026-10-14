@@ -1,8 +1,10 @@
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
+os.environ.setdefault("HARP_GX_DISABLE", "1")   # Server-Tests ohne g(n)-Worker; GX-Tests schalten ihn gezielt ein
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 

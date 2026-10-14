@@ -174,6 +174,7 @@ class Frame:
     corr_bin_ps: float = 0.0
     corr_x0_ps: float = 0.0          # linke Kante von Bin 0 (negativ, symmetrisches Fenster)
     wrapped: bool = False            # Datei wurde am Ende neu begonnen (Loop)
+    events: tuple | None = None      # GX: (Zeit in ps int64, Kanal) aller Ereignisse des Frames
 
 
 @dataclass
