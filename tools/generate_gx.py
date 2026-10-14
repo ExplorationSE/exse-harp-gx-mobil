@@ -41,10 +41,11 @@ def _route(rng, n, nch=4):
 
 
 # ---------------------------------------------------------------- Szenarien
-def thermal_cw(duration_s, rng, rate=100_000.0, tau_c_us=50.0, dt_us=0.5):
+def thermal_cw(duration_s, rng, rate=450_000.0, tau_c_us=0.4, dt_us=0.02):
     """Pseudo-thermisches Licht (rotierende Mattscheibe): komplexes Gauß-Feld (Ornstein-Uhlenbeck),
     Feldkorrelation exp(−|τ|/τc) → g²(τ)=1+exp(−2|τ|/τc), g²(0)=2, g³(0,0)=3!=6, g⁴(0,0,0)=4!=24.
-    Jeder der 4 Detektoren zählt Poisson mit Rate rate·I(t)."""
+    Jeder der 4 Detektoren zählt Poisson mit Rate rate·I(t). τc = 400 ns (FWHM von g² ≈ 277 ns) und
+    450 kHz je Kanal: mit dem automatisch gewählten Fenster (FWHM/6 ≈ 50 ns) ≈ 80 Quadrupel/s."""
     dt = dt_us * 1e-6
     a = np.exp(-dt / (tau_c_us * 1e-6))
     nsteps = int(duration_s / dt)
@@ -56,7 +57,7 @@ def thermal_cw(duration_s, rng, rate=100_000.0, tau_c_us=50.0, dt_us=0.5):
         z = (rng.normal(size=n) + 1j * rng.normal(size=n)) / np.sqrt(2) * np.sqrt(1 - a * a)
         # AR(1)-Rekursion vektorisiert: e_k = a^k e_0 + Σ a^(k−j) z_j  (über lfilter-artige Kumulation)
         ak = a ** np.arange(1, n + 1)
-        ek = ak * (e + np.cumsum(z / ak)) if n <= 200 else _ar1(e, z, a)
+        ek = ak * (e + np.cumsum(z / ak)) if n <= 200 else _ar1(e, z, a, bl=int(min(100_000, max(200, 300 / -np.log(a)))))
         e = ek[-1]
         inten = np.abs(ek) ** 2
         for ch in range(1, 5):
@@ -66,12 +67,12 @@ def thermal_cw(duration_s, rng, rate=100_000.0, tau_c_us=50.0, dt_us=0.5):
     return _finish(rng, tl, cl, duration_s, 4)
 
 
-def _ar1(e0, z, a):
-    # stabile blockweise Rekursion (Blöcke à 200, damit a^-k nicht überläuft)
+def _ar1(e0, z, a, bl=200):
+    # stabile blockweise Rekursion (Blocklänge so, dass a^-k ≤ e^300 bleibt, kein Überlauf)
     out = np.empty(z.size, np.complex128)
     e = e0
-    for b in range(0, z.size, 200):
-        zz = z[b:b + 200]
+    for b in range(0, z.size, bl):
+        zz = z[b:b + bl]
         ak = a ** np.arange(1, zz.size + 1)
         blk = ak * (e + np.cumsum(zz / ak))
         out[b:b + zz.size] = blk
@@ -95,7 +96,7 @@ def thermal_pulsed(duration_s, rng, rep_hz=1e6, mu=0.25):
     return _finish(rng, tl, cl, duration_s, 4)
 
 
-def laser_cw(duration_s, rng, rate=100_000.0):
+def laser_cw(duration_s, rng, rate=450_000.0):
     """Kohärentes Laserlicht (Poisson): g²=g³=g⁴=1."""
     tl, cl = [], []
     for ch in range(1, 5):
@@ -183,6 +184,25 @@ def hom_scan(duration_s, rng, pair_rate=400_000.0, eta=0.2):
     return _finish(rng, t_list, c_list, duration_s, 2, jitter_ps=30.0, offsets=offs)
 
 
+def thermal_cw_expected(w_ps, tau_c_ps=400_000.0, n=400_000, seed=7):
+    """Erwartete Kachelwerte bei Fensterbreite w: Mittel der Permanente der Korrelationsmatrix
+    γ_ij = exp(−|τi−τj|/τc) (Gauß-Feld, Wick) über τ_i gleichverteilt in ±w/2 um die Start-Marke (τ=0)."""
+    rng = np.random.default_rng(seed)
+    out = {}
+    for order in (2, 3, 4):
+        tau = np.concatenate([np.zeros((n, 1)), rng.uniform(-w_ps / 2, w_ps / 2, (n, order - 1))], axis=1)
+        g = np.exp(-np.abs(tau[:, :, None] - tau[:, None, :]) / tau_c_ps)
+        per = np.zeros(n)
+        import itertools
+        for p in itertools.permutations(range(order)):
+            per += np.prod([g[:, i, p[i]] for i in range(order)], axis=0)
+        out[f"g{order}"] = round(float(per.mean()), 3)
+    return out
+
+
+THERMAL_CW_W = 50_000   # automatisch gewähltes Fenster (FWHM/6, gerundet)
+
+
 def _tau0():
     return 1.0 / (1 / 20.0 + 1 / 5.0)
 
@@ -193,15 +213,16 @@ def single_cw_expected(w_ns):
 
 
 SCENARIOS = {
-    "thermal_cw": dict(fn=thermal_cw, dur=8, file="Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_8s.ptu", nch=4, sync=0,
-                       expected={"g2": 2.0, "g3": 6.0, "g4": 24.0, "w_ps": 500_000,
-                                 "note": "ideal 2/6/24; Fenster 0,5 µs vs. τc 50 µs mindert g⁴ um wenige %"},
-                       comment="Synthetisch: pseudo-thermisches Licht cw, tau_c=50 us, 4 Detektoren K1-K4; erwartet g2(0)=2, g3(0,0)=6, g4(0,0,0)=24"),
+    "thermal_cw": dict(fn=thermal_cw, dur=3, file="Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu", nch=4, sync=0,
+                       expected={**thermal_cw_expected(THERMAL_CW_W), "g2_ideal": 2.0, "g3_ideal": 6.0,
+                                 "g4_ideal": 24.0, "w_ps": THERMAL_CW_W,
+                                 "note": "ideal 2/6/24; Fenster 50 ns vs. τc 400 ns → Werte über das Fenster gemittelt"},
+                       comment="Synthetisch: pseudo-thermisches Licht cw, tau_c=400 ns, 450 kHz je Kanal K1-K4; g2(0)=2, g3(0,0)=6, g4(0,0,0)=24 (ideal)"),
     "thermal_pulsed": dict(fn=thermal_pulsed, dur=4, file="Demo_Synthetisch_T2_Thermisch_gepulst_1MHz_4s.ptu", nch=4, sync=1e6,
                            expected={"g2": 2.0, "g3": 6.0, "g4": 24.0, "w_ps": 2000, "period_ps": 1e6},
                            comment="Synthetisch: thermisches Licht gepulst 1 MHz, eine Mode/Puls; Seitenpeak-normiert g2=2, g3=6, g4=24"),
-    "laser_cw": dict(fn=laser_cw, dur=8, file="Demo_Synthetisch_T2_Laser_kohaerent_Referenz_8s.ptu", nch=4, sync=0,
-                     expected={"g2": 1.0, "g3": 1.0, "g4": 1.0, "w_ps": 2_000_000},
+    "laser_cw": dict(fn=laser_cw, dur=3, file="Demo_Synthetisch_T2_Laser_kohaerent_Referenz_3s.ptu", nch=4, sync=0,
+                     expected={"g2": 1.0, "g3": 1.0, "g4": 1.0, "w_ps": 140_000},
                      comment="Synthetisch: kohaerentes Laserlicht (Poisson), 4 Detektoren; erwartet g2=g3=g4=1"),
     "single_cw": dict(fn=single_cw, dur=4, file="Demo_Synthetisch_T2_Einzelphotonen_cw_Antibunching_4s.ptu", nch=4, sync=0,
                       expected={"g2": float(single_cw_expected(4.0)), "g2_ideal": 0.0, "g3": 0.0, "w_ps": 4000,

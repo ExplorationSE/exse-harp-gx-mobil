@@ -11,7 +11,20 @@ from playwright.sync_api import sync_playwright
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8765/"
 OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parent.parent
-FILE = "Demo_Synthetisch_T2_Thermisch_gepulst_1MHz_4s.ptu"
+FILE = sys.argv[3] if len(sys.argv) > 3 else "Demo_Synthetisch_T2_Thermisch_gepulst_1MHz_4s.ptu"
+PREFIX = sys.argv[4] if len(sys.argv) > 4 else "screenshot-gx020"
+SPEED = sys.argv[5] if len(sys.argv) > 5 else "5"
+MIN_T = float(sys.argv[6]) if len(sys.argv) > 6 else 0.0   # vor den Bildern warten, bis T ≥ MIN_T s gesammelt
+
+
+def wait_filled(pg):
+    if MIN_T <= 0:
+        return
+    for _ in range(200):
+        if pg.evaluate(f"typeof G !== 'undefined' && !!G.head && G.head.T_s >= {MIN_T}"):
+            time.sleep(0.6)
+            return
+        time.sleep(0.1)
 HER = "Demo_Synthetisch_T2_Heralded_K0_g2h_8s.ptu"
 ROW_JS = """() => { const els = [document.querySelector('#viewBtn'), ...document.querySelectorAll('.chbtn')]
   .map(e => e.getBoundingClientRect());
@@ -34,7 +47,7 @@ with sync_playwright() as p:
         if w == 360:
             pg.select_option("#file", FILE)
             time.sleep(1.0)
-            pg.select_option("#speed", "5")
+            pg.select_option("#speed", SPEED)
             pg.click("#bStart")
         for v in ("hist", "corr", "g3", "g4", "trace"):
             pg.click(f'#viewBtn span[data-v="{v}"]')
@@ -45,23 +58,25 @@ with sync_playwright() as p:
         time.sleep(9 if w == 360 else 3)
         pg.click('#viewBtn span[data-v="g3"]'); time.sleep(1.5)
         pg.click('#gnMode button[data-m="map"]'); time.sleep(1.2)
+        wait_filled(pg)
         report.append((w, "g3-Ränder", pg.evaluate(SYM_JS)))
-        pg.screenshot(path=str(OUT / f"screenshot-gx020-g3-karte-{w}.png"), full_page=False)
+        pg.screenshot(path=str(OUT / f"{PREFIX}-g3-karte-{w}.png"), full_page=False)
         if w == 390:
             pg.click('#gnMode button[data-m="diag"]'); time.sleep(1.2)
-            pg.screenshot(path=str(OUT / f"screenshot-gx020-g3-diagonale-{w}.png"))
+            pg.screenshot(path=str(OUT / f"{PREFIX}-g3-diagonale-{w}.png"))
             pg.click('#gnMode button[data-m="map"]')
         pg.click('#viewBtn span[data-v="g4"]'); time.sleep(1.5)
         pg.click('#gnMode button[data-m="slice"]'); time.sleep(1.2)
-        pg.screenshot(path=str(OUT / f"screenshot-gx020-g4-schnitt-{w}.png"))
+        wait_filled(pg)
+        pg.screenshot(path=str(OUT / f"{PREFIX}-g4-schnitt-{w}.png"))
         if w == 390:
             pg.evaluate("() => { const s = document.querySelector('#gnTau3'); s.value = String(Math.floor(+s.max / 2) + 8); s.dispatchEvent(new Event('input')); }")
             time.sleep(0.6)
-            pg.screenshot(path=str(OUT / f"screenshot-gx020-g4-schnitt-tau3-{w}.png"))
+            pg.screenshot(path=str(OUT / f"{PREFIX}-g4-schnitt-tau3-{w}.png"))
             pg.click('#gnMode button[data-m="diag"]'); time.sleep(1.2)
-            pg.screenshot(path=str(OUT / f"screenshot-gx020-g4-diagonale-{w}.png"))
+            pg.screenshot(path=str(OUT / f"{PREFIX}-g4-diagonale-{w}.png"))
             pg.click('#gnMode button[data-m="slice"]')
-            pg.screenshot(path=str(OUT / f"screenshot-gx020-info-{w}.png"), full_page=True)
+            pg.screenshot(path=str(OUT / f"{PREFIX}-info-{w}.png"), full_page=True)
         ctx.close()
     b.close()
 for r in report:

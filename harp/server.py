@@ -177,6 +177,7 @@ class HarpService:
         # GX: Korrelationen höherer Ordnung im Worker-Prozess
         self.gn = GnRunner(GN_SEND_INTERVAL_S)
         self.gn_period_ps = 0.0
+        self.gn_user_geom = False   # Nutzer hat Fenster/Bereich gesetzt → keine automatische Wahl
         self.gn_last_sent = 0.0
         self.gn_last_bytes = 0
         self.gn_last: dict | None = None
@@ -193,7 +194,8 @@ class HarpService:
     def _gn_config(self) -> GnConfig:
         s = self.settings
         return GnConfig(channels=self._gn_channels(), combo3=tuple(s.combo3), combo4=tuple(s.combo4),
-                        range_ps=s.gn_range_ps, win_ps=s.gn_win_ps, period_ps=self.gn_period_ps)
+                        range_ps=s.gn_range_ps, win_ps=s.gn_win_ps, period_ps=self.gn_period_ps,
+                        auto_geom=self.gn_period_ps <= 0 and not self.gn_user_geom)
 
     def _gn_defaults(self, info) -> dict[str, Any]:
         """Startwerte g(n): gepulst (regelmäßiger Sync) → ±2,5 Perioden, Fenster P/4 (≤ 10 ns); sonst ±25 ns, 2 ns."""
@@ -226,7 +228,7 @@ class HarpService:
                 "range4_ps": r["range4_ps"], "bw3_ps": r["bw3_ps"], "bw4_ps": r["bw4_ps"],
                 "n3": r["n3"], "n4": r["n4"], "period_ps": self.gn_period_ps, "win_ps": s.gn_win_ps,
                 "delays": {str(k): v for k, v in r["delays"].items()}, "cal_done": r["cal_done"],
-                "cal_status": r.get("cal_status", "vorgegeben"), "cal_missing": r.get("cal_missing", []),
+                "cal_status": r.get("cal_status", "vorgegeben"), "cal_missing": r.get("cal_missing", []), "geo": r.get("geo"),
                 "backend": r["backend"], "threads": self.gn.info.get("threads"),
                 "latency_ms": round(r.get("latency_s", 0) * 1000, 1),
                 "proc_mtags": round(st["tags"] / st["proc_s"] / 1e6, 2) if st.get("proc_s") else None,
@@ -249,6 +251,21 @@ class HarpService:
                     self.gn_last_bytes = len(cache[v])
             if cache[v] is not None:
                 c.post_bin(cache[v])
+
+    def _gn_sync_geo(self, r: dict | None) -> None:
+        """Automatisch gewähltes Fenster/Bereich (cw) in die Einstellungen übernehmen."""
+        if not r or self.gn_user_geom or self.gn_period_ps > 0:
+            return
+        g = r.get("geo")
+        if not g:
+            return
+        w, rg = int(r["win_ps"]), int(r["range_set_ps"])
+        s = self.settings
+        if (s.gn_win_ps, s.gn_range_ps) != (w, rg):
+            self.settings = s.model_copy(update={"gn_win_ps": w, "gn_range_ps": rg})
+            if self.gn.cfg is not None:
+                self.gn.cfg.win_ps, self.gn.cfg.range_ps = w, rg
+            asyncio.get_event_loop().create_task(self.broadcast_status())
 
     def gn_reset(self, full: bool) -> None:
         self.gn.reset(full)
@@ -316,6 +333,7 @@ class HarpService:
             self.settings = Settings(**(self.settings.model_dump() | upd))
             self.settings = Settings(**(self.settings.model_dump() | self._gn_defaults(info)))
             self.source.configure(self._acq_params())
+        self.gn_user_geom = False
         self.gn.configure(self._gn_config(), keep_delays=False)
         self.gn.recalibrate()          # neue Datei: Laufzeiten neu bestimmen
         self.gn_last = None
@@ -378,6 +396,7 @@ class HarpService:
                 await self.broadcast_frame(total, fr, rates, sync_rate, calc_ms)
                 if self.gn.poll() is not None:
                     self.gn_last = self.gn.latest
+                    self._gn_sync_geo(self.gn_last)
                 now = time.monotonic()
                 if self.gn_last is not None and now - self.gn_last_sent >= GN_SEND_INTERVAL_S:
                     self.gn_last_sent = now
@@ -537,6 +556,8 @@ class HarpService:
             self.acc.configure(new.mode, new.window_frames)
             self.cacc.configure(new.mode, new.window_frames)
             gkeys = ("gn_range_ps", "gn_win_ps", "combo3", "combo4")
+            if (new.gn_range_ps, new.gn_win_ps) != (old.gn_range_ps, old.gn_win_ps):
+                self.gn_user_geom = True
             if any(getattr(new, k) != getattr(old, k) for k in gkeys):
                 self.gn.configure(self._gn_config(), keep_delays=True)
                 self.gn_last = None

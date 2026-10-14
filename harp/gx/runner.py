@@ -25,6 +25,7 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
     dirty = False
     newest_stamp = 0.0
     tags_in = 0
+    epoch = 0
     while True:
         try:
             msgs = [inq.get(timeout=0.1)]
@@ -38,6 +39,9 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
         fed = False
         for m in msgs:
             kind = m[0]
+            if kind == "epoch":
+                epoch = m[1]
+                continue
             if kind == "stop":
                 return
             if kind == "cfg":
@@ -61,6 +65,7 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
                 eng.reset(full=True)
                 eng.cal_done = not eng.cfg.auto_cal
                 eng.cal_status, eng.cal_missing = "vorgegeben", []
+                eng.clear_geo()
                 dirty = True
             elif kind == "ev":
                 eng.feed(m[1], m[2])
@@ -74,6 +79,7 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
         if dirty and now - last_out >= out_interval_s:
             r = eng.result()
             r["stamp"] = newest_stamp
+            r["epoch"] = epoch
             r["backlog"] = inq.qsize() if hasattr(inq, "qsize") else 0
             outq.put(("res", r))
             last_out = now
@@ -87,6 +93,12 @@ class GnRunner:
         self.info: dict = {}
         self.latest: dict | None = None
         self.cfg: GnConfig | None = None
+        self.epoch = 0      # Ergebnisse älterer Konfigurationen (z. B. vorige Datei) werden verworfen
+
+    def _new_epoch(self) -> None:
+        self.epoch += 1
+        self.latest = None
+        self._put(("epoch", self.epoch))
 
     def start(self) -> None:
         ctx = mp.get_context("spawn")
@@ -102,17 +114,18 @@ class GnRunner:
 
     def configure(self, cfg: GnConfig, keep_delays: bool = True) -> None:
         self.cfg = cfg
+        self._new_epoch()
         d = asdict(cfg)
         if keep_delays:
             d["delays"] = None
         self._put(("cfg", d))
 
     def reset(self, full: bool = False) -> None:
-        self.latest = None
+        self._new_epoch()
         self._put(("reset", full))
 
     def recalibrate(self) -> None:
-        self.latest = None
+        self._new_epoch()
         self._put(("recal",))
 
     def feed(self, t: np.ndarray, ch: np.ndarray) -> None:
@@ -133,7 +146,7 @@ class GnRunner:
                 break
             if kind == "ready":
                 self.info = payload
-            else:
+            elif payload.get("epoch", self.epoch) == self.epoch:
                 new = payload
         if new is not None:
             new["latency_s"] = time.monotonic() - new.get("stamp", time.monotonic())

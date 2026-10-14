@@ -14,7 +14,7 @@ from harp.gx import kernels as K
 from harp.gx import wire
 from harp.gx.engine import GnConfig, GnEngine
 from harp.ptu import read_all
-from tools.generate_gx import OFFS, generate
+from tools.generate_gx import OFFS, SCENARIOS, generate, thermal_cw_expected  # noqa: F401
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 @pytest.fixture(scope="module")
 def files(tmp_path_factory):
     d = tmp_path_factory.mktemp("gxe")
-    spec = {"thermal_pulsed": 3, "thermal_cw": 3, "single_pulsed": 2, "heralded_cw": 4, "laser_cw": 3}
+    spec = {"thermal_pulsed": 3, "thermal_cw": 3, "single_pulsed": 2, "heralded_cw": 4, "laser_cw": 3, "single_cw": 2}
     return {n: generate(n, d / f"{n}.ptu", dur, seed=33) for n, dur in spec.items()}
 
 
@@ -78,7 +78,7 @@ def _ref(path, chans, w, period=0.0):
 
 
 @pytest.mark.parametrize("name,period,w", [("thermal_pulsed", 1e6, 2000), ("single_pulsed", 25_000, 6000),
-                                           ("thermal_cw", 0.0, 500_000)])
+                                           ("thermal_cw", 0.0, 50_000)])
 def test_tiles_match_reference(files, name, period, w):
     t, c = events(files[name])
     eng = run(t, c, GnConfig(channels=[1, 2, 3, 4], range_ps=max(25_000, int(2.5 * period)), win_ps=w,
@@ -231,3 +231,42 @@ def test_low_statistics_tiles_are_marked_not_zero(files):
     q = tiles[(1, 2, 3, 4)]
     assert q["low"] and not np.isfinite(q["g"])
     assert not tiles[(1, 2)]["low"] and abs(tiles[(1, 2)]["g"] - 2) < 0.4
+
+
+def _auto(path, chans=(1, 2, 3, 4)):
+    t, c = events(path)
+    return run(t, c, GnConfig(channels=list(chans), range_ps=25_000, win_ps=2000, auto_geom=True), 150_000)
+
+
+def test_autogeom_thermal_cw_fills_g3_g4(files):
+    """Live-Standard (±25 ns, 2 ns) + automatische Wahl aus der g²-Breite → g³/g⁴ füllen sich."""
+    eng = _auto(files["thermal_cw"])
+    r = eng.result()
+    g = r["geo"]
+    assert g["basis"] == "g2-Breite" and 200_000 <= g["fwhm_ps"] <= 350_000
+    assert 35_000 <= r["win_ps"] <= 60_000 and r["range_set_ps"] >= 600_000
+    assert r["cal_status"] == "unnoetig"
+    ex = thermal_cw_expected(r["win_ps"])
+    tiles = {tuple(x["ch"]): x for x in r["tiles"]}
+    assert abs(tiles[(1, 2, 3)]["g"] / ex["g3"] - 1) < 0.12
+    assert tiles[(1, 2, 3, 4)]["n"] >= 100 and abs(tiles[(1, 2, 3, 4)]["g"] / ex["g4"] - 1) < 0.25
+    assert r["n3"] > 1000 and r["n4"] > 100
+
+
+def test_autogeom_laser_statistics(files):
+    r = _auto(files["laser_cw"]).result()
+    assert r["geo"]["basis"] == "Statistik" and r["win_ps"] > 20_000
+    q = {tuple(x["ch"]): x for x in r["tiles"]}[(1, 2, 3, 4)]
+    assert not q["low"] and abs(q["g"] - 1) < 0.35
+
+
+def test_autogeom_keeps_defaults_for_narrow_features(files):
+    r = _auto(files["single_cw"]).result()
+    assert r["geo"]["basis"] == "Standard" and r["win_ps"] == 2000 and r["range_set_ps"] == 25_000
+    assert not r["geo"]["changed"]
+
+
+def test_autogeom_off_for_pulsed(files):
+    t, c = events(files["thermal_pulsed"])
+    eng = run(t, c, GnConfig(channels=[1, 2, 3, 4], range_ps=2_500_000, win_ps=10_000, period_ps=1e6, auto_geom=True))
+    assert eng.result()["geo"] is None and eng.cfg.win_ps == 10_000

@@ -44,9 +44,9 @@ auch für integrierte Intel-Grafik) und Anzeige auf dem Handy.
 
 | Datei (`data/`) | Szenario | Sollwerte | gemessen (Demodatei) |
 |---|---|---|---|
-| `Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_8s.ptu` (13,8 MB) | pseudo-thermisch cw, τc = 50 µs, K1–K4, Fenster 0,5 µs | g²=2, g³=6, g⁴=24 | 2,00 / 5,95 / 24,0 |
+| `Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu` (22,0 MB) | pseudo-thermisch cw, τc = 400 ns, 450 kHz je Kanal K1–K4, Fenster 50 ns (automatisch) | ideal 2/6/24; über 50 ns gemittelt 1,94 / 5,61 / 21,6 | 1,94 / 5,73 / 22,6 |
 | `Demo_Synthetisch_T2_Thermisch_gepulst_1MHz_4s.ptu` (16,5 MB) | thermisch gepulst 1 MHz, eine Mode/Puls, Seitenpeak-Normierung | g²=2, g³=6, g⁴=24 | 2,00 / 6,00 / 24,0 |
-| `Demo_Synthetisch_T2_Laser_kohaerent_Referenz_8s.ptu` (13,8 MB) | kohärent (Poisson) | g²=g³=g⁴=1 | 1,00 / 1,01 / 1,02 |
+| `Demo_Synthetisch_T2_Laser_kohaerent_Referenz_3s.ptu` (22,0 MB) | kohärent (Poisson), 450 kHz je Kanal, Fenster 140 ns | g²=g³=g⁴=1 | 1,00 / 1,00 / 0,91 |
 | `Demo_Synthetisch_T2_Einzelphotonen_cw_Antibunching_4s.ptu` (16,5 MB) | Einzelemitter cw, g²(τ)=1−e^(−\|τ\|/4 ns) | g²(0)=0 ideal; Mittel über ±2 ns: 0,213; g³=g⁴=0 | 0,224 / 0 / 0 |
 | `Demo_Synthetisch_T2_Einzelphotonen_gepulst_40MHz_4s.ptu` (13,5 MB) | Einzelphotonenquelle gepulst 40 MHz | g²(0)=0,05, g³=g⁴=0 | 0,046 / 0 / 0 |
 | `Demo_Synthetisch_T2_Heralded_K0_g2h_8s.ptu` (12,2 MB) | SPDC-Paare 1 MHz, **K0 = Herald**, K1/K2 (+12/+15 ns) | heralded g²(0)=2·R·w=0,008 (w=4 ns); ohne Herald 1 | 0,0075 / 1,00 |
@@ -69,9 +69,16 @@ Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall). Ansichten g³ (
 (τ3-Schnitt, Diagonale, g⁴(0,0,0)). Messung auf der Box (8 Threads, Tempo 1×, Ansicht g³): 5,8–78 Mtags/s
 Rechenkapazität je Demodatei, Frame-Latenz median ≈ 150 ms, Frames 0,6–2,1 kB.
 
+**0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
+im g² (FWHM ≥ 50 ns) gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach
+Statistik gewählt (≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns.
+Setzen Sie Fenster oder Bereich selbst, ist die Automatik aus. Bei jedem Dateidurchlauf werden die Werte
+weiterhin neu gesammelt. Zeit bis g³ und g⁴ stabil sind (n ≥ 10, ±10 % vom Sollwert), live bei 1×:
+thermisch cw ≈ 2,3 s, Laser ≈ 1,3 s, thermisch gepulst ≈ 0,6 s.
+Die Binär-Frames sind bei gefüllten Karten größer: thermisch cw ≈ 35 kB, Laser ≈ 13 kB (2 Hz).
+
 Einschränkungen: Karten werden nur aufsummiert (kein Abklingen); snAPI-Quelle liefert keine Einzelereignisse
-(kein g³/g⁴); Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); thermisch cw braucht großen Bereich
-(teuer); Kalibrierung braucht ein Merkmal im g² (beim kohärenten Laser keine); Kacheln nutzen ein festes,
+(kein g³/g⁴); Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); Kalibrierung braucht ein Merkmal im g² (beim kohärenten Laser keine); Kacheln nutzen ein festes,
 bei τ=0 zentriertes Fenster; GPU-Pfad (wgpu) noch nicht vorhanden.
 
 ## Funktionen

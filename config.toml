@@ -16,7 +16,7 @@ lock_timeout_s = 300
 # hh500 = echte HydraHarp 500 (in V1 nur Platzhalter)
 kind = "pure"
 data_dir = "data"
-default_file = "Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_8s.ptu"
+default_file = "Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu"
 autostart = true
 # nur snapi: true, falls getData() im Sequence-Modus kumulierte statt Fenster-Daten liefert
 snapi_windows_cumulative = false

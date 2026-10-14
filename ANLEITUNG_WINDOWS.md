@@ -29,7 +29,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1
 * Wer die Adresse kennt, sieht zunächst nur eine **Anmeldeseite**. Ohne den **Zugangscode** gibt es weder Daten
   noch Steuerung.
 * Datenquelle sind sieben mitgelieferte synthetische T2-Messungen `data\Demo_Synthetisch_T2_*.ptu` mit bekannten
-  g⁽²⁾/g⁽³⁾/g⁽⁴⁾ (Standard: `Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_8s.ptu`, 4 Kanäle, läuft in Schleife; Übersicht im README). Es wird **kein Messgerät** und **kein snAPI** benötigt.
+  g⁽²⁾/g⁽³⁾/g⁽⁴⁾ (Standard: `Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu`, 4 Kanäle, läuft in Schleife; Übersicht im README). Es wird **kein Messgerät** und **kein snAPI** benötigt.
 
 ## 1. Voraussetzungen
 

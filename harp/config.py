@@ -15,7 +15,7 @@ class Config:
     port: int = 8765
     source: str = "pure"                 # pure | snapi | hh500
     data_dir: Path = BASE_DIR / "data"
-    default_file: str = "Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_8s.ptu"
+    default_file: str = "Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu"
     token: str = ""                      # leer = keine Authentifizierung (nur LAN!)
     log_dir: Path = BASE_DIR / "logs"
     lock_timeout_s: float = 300.0

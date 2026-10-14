@@ -395,7 +395,7 @@ function renderInfo() {
   const gh = G.head;
   if (gh) {
     const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
-    rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_status === "kein_merkmal" ? " (kein Merkmal – ohne Offsets)" : gh.cal_status === "teilweise" ? " (unvollständig)" : gh.cal_done ? "" : " (Kalibrierung läuft)")],
+    rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_status === "unnoetig" ? " (vernachlässigbar, g² breit)" : gh.cal_status === "kein_merkmal" ? " (kein Merkmal – ohne Offsets)" : gh.cal_status === "teilweise" ? " (unvollständig)" : gh.cal_done ? "" : " (Kalibrierung läuft)")],
       ["Rechenkern", `${gh.backend}${gh.threads ? " · " + gh.threads + " Threads" : ""} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame`]);
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
@@ -614,6 +614,16 @@ function drawGnTiles() {
     + (calNote(h) ? `<div class="calnote">${calNote(h)}</div>` : "");
 }
 function calNote(h) {
+  const n = [], g = h.geo;
+  if (g && g.changed) n.push(g.basis === "g2-Breite"
+    ? `Fenster ${fmtWidth(g.win_ps)} / Bereich ±${fmtWidth(g.range_ps)} automatisch aus der g²-Breite (FWHM ${fmtWidth(g.fwhm_ps)}).`
+    : `Fenster ${fmtWidth(g.win_ps)} / Bereich ±${fmtWidth(g.range_ps)} nach Statistik gewählt (kein Merkmal im g²).`);
+  const c = calText(h);
+  if (c) n.push(c);
+  return n.join(" ");
+}
+function calText(h) {
+  if (h.cal_status === "unnoetig") return "Laufzeiten vernachlässigbar (g² viel breiter als der Kabelversatz).";
   if (h.cal_status === "kein_merkmal") return "Keine Laufzeit-Kalibrierung möglich (kein Merkmal im g²) – ohne Offsets gerechnet.";
   if (h.cal_status === "teilweise") return `Kalibrierung unvollständig: ohne Offset für ${h.cal_missing.map((k) => "K" + k).join(", ")}.`;
   if (h.cal_status === "läuft") return "Laufzeit-Kalibrierung läuft (2 s Messzeit) …";

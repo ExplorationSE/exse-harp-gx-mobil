@@ -1,6 +1,6 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
-## 0.2.1-dev – 14.10.2026
+## 0.2.1 – 14.10.2026
 
 - Thermisch cw live (g³/g⁴ = 0, keine Kalibrierung): kein Rechenfehler, sondern Statistik bzw. Einstellung.
   Mit den cw-Standardwerten (±25 ns, Fenster 2 ns) fallen bei 100 kHz/Kanal nur ≈ 0,02 Tripel/s und ≈ 10⁻⁵
@@ -10,7 +10,21 @@
   Leere Karten zeigen den Hinweis „Sammelt Daten …“.
 - Kalibrierung ohne Merkmal (z. B. kohärenter Laser) rechnet ohne Offsets weiter und zeigt einen Hinweis.
   Eine unvollständige Kalibrierung nennt die Kanäle ohne Offset. Neue Felder `cal_status` und `cal_missing`.
-- Tests: Laser-Rückfall ohne Offsets, Markierung bei zu wenig Koinzidenzen. Service-Worker-Cache r3.
+- Tests: Laser-Rückfall ohne Offsets, Markierung bei zu wenig Koinzidenzen.
+- Automatische Wahl von Fenster und Bereich bei cw, einmalig nach 0,5 s. Grundlage ist eine grobe g²-Kurve
+  (±5 µs, 10 ns). Bei breitem Merkmal gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal wird das
+  Fenster nach Statistik gewählt (≈ 100 Quadrupel/s). Schmale Merkmale behalten die Standardwerte.
+  Sobald Sie Fenster oder Bereich selbst setzen, ist die Automatik aus. Die App zeigt einen Hinweis.
+- Kalibrierstatus „unnötig“: Die g²-Korrelation ist viel breiter als der Kabelversatz.
+- Kalibrierung ohne geänderte Laufzeiten setzt die Summen nicht mehr zurück.
+- Worker-Ergebnisse tragen eine Epoche. Veraltete Ergebnisse, z. B. der vorigen Datei, werden verworfen.
+  Behoben: Nach dem Dateiwechsel zeigte die App das Fenster der vorigen Datei.
+- Neue Demodaten: `Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu` (τc 400 ns, 450 kHz/Kanal, 22 MB) und
+  `Demo_Synthetisch_T2_Laser_kohaerent_Referenz_3s.ptu` (450 kHz/Kanal, 22 MB). Sie ersetzen die 8-s-Dateien.
+  Sollwerte für thermisch cw kommen aus dem Fenstermittel der Permanente, siehe `thermal_cw_expected`.
+- Beim Dateidurchlauf werden die Werte weiterhin zurückgesetzt (wie gewünscht).
+- `tools/gx_live_bench.py` misst die Zeit, bis g³/g⁴ stabil sind. `tools/screenshot_gx.py` hat
+  Parameter für Datei, Präfix, Tempo und Mindestmesszeit. Service-Worker-Cache r5.
 
 ## 0.2.0 – 14.10.2026
 

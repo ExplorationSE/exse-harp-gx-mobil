@@ -22,8 +22,17 @@ CAL_W = 20_000          # ±20 ns
 CAL_BW = 50             # 50 ps
 CAL_NB = 2 * CAL_W // CAL_BW
 CAL_SMOOTH = 20         # 1 ns
-CAL_MIN_T_PS = 2e12
-MIN_COUNTS = 10       # darunter: Kachel gilt als „sammelt Daten“ (kein Zahlenwert)     # Kalibrierung nach 2 s Messzeit
+CAL_MIN_T_PS = 2e12     # Kalibrierung nach 2 s Messzeit
+MIN_COUNTS = 10         # darunter: Kachel gilt als „sammelt Daten“ (kein Zahlenwert)
+# Automatische Fenster-/Bereichswahl (nur cw): grobe g²-Kurve ±5 µs, 10 ns, nach 0,5 s Messzeit
+GEO_W = 5_000_000
+GEO_BW = 10_000
+GEO_NB = 2 * GEO_W // GEO_BW
+GEO_MIN_T_PS = 0.5e12
+GEO_WIN_FRAC = 6        # Fenster = FWHM/6
+GEO_RANGE_FRAC = 3      # Bereich = ±3·FWHM
+GEO_Q_PER_S = 100.0     # ohne Merkmal: Fenster so, dass ≈ 100 Quadrupel/s anfallen
+GEO_WIN_MAX = 1_000_000
 SIDE_SETS = [(1, 2, 3), (-1, -2, -3), (2, 3, 1), (-2, -3, -1)]
 
 
@@ -39,6 +48,7 @@ class GnConfig:
     period_ps: float = 0.0      # > 0: gepulst → Seitenpeak-Normierung
     delays: dict[int, float] = field(default_factory=dict)
     auto_cal: bool = True
+    auto_geom: bool = False     # cw: Fenster/Bereich einmalig aus der g²-Breite (bzw. Statistik) wählen
     backend: str | None = None
 
 
@@ -50,7 +60,18 @@ class GnEngine:
     def __init__(self, cfg: GnConfig | None = None) -> None:
         self.cfg = cfg or GnConfig()
         self.cal_done = not self.cfg.auto_cal or bool(self.cfg.delays)
+        self.geo: dict | None = None
+        self.geo_h = np.zeros(GEO_NB, np.int64)
+        self.geo_T = 0.0
         self.reset(full=True)
+
+    def _geo_active(self) -> bool:
+        return self.cfg.auto_geom and self.cfg.period_ps <= 0 and self.geo is None
+
+    def clear_geo(self) -> None:
+        self.geo = None
+        self.geo_h = np.zeros(GEO_NB, np.int64)
+        self.geo_T = 0.0
 
     # ------------------------------------------------------------ Konfiguration
     def configure(self, cfg: GnConfig) -> None:
@@ -83,7 +104,10 @@ class GnEngine:
         if self.cfg.period_ps > 0:
             r = max(r, int(3 * self.cfg.period_ps + self.cfg.win_ps))
         dmax = max([abs(v) for v in self.cfg.delays.values()], default=0)
-        return int(max(r, self._calgeom()[0] + 2 * dmax + 1000))
+        r = max(r, self._calgeom()[0] + 2 * dmax + 1000)
+        if self._geo_active():
+            r = max(r, GEO_W + 2 * dmax + 1000)
+        return int(r)
 
     def reset(self, full: bool = False) -> None:
         """Akkumulatoren leeren. full=True: auch Puffer und Kalibrierung (neue Datei / Rücksprung)."""
@@ -185,6 +209,15 @@ class GnEngine:
             self.cal_T += span
             if self.cal_T >= CAL_MIN_T_PS:
                 self._calibrate(chans)
+        # Automatische Fenster-/Bereichswahl (cw)
+        if self._geo_active():
+            for a, b in itertools.combinations(sorted(chans), 2):
+                ra = self.buf[a]
+                i0, i1 = np.searchsorted(ra, self.done + d[a]), np.searchsorted(ra, horizon + d[a])
+                self.geo_h += K.g2_hist(ra, self.buf[b], int(i0), int(i1), GEO_W, GEO_BW, GEO_NB, be)
+            self.geo_T += span
+            if self.geo_T >= GEO_MIN_T_PS:
+                self._autogeom(chans)
         # Überlapp behalten
         keep_from = horizon - M
         for k in chans:
@@ -206,6 +239,72 @@ class GnEngine:
         bw = max(CAL_BW, int(np.ceil(2 * W / 60000)))
         nb = 2 * W // bw
         return nb * bw // 2, bw, nb
+
+    @staticmethod
+    def _feature(h: np.ndarray, sm: int, nsig: float = 8.0):
+        """Signifikantestes Merkmal (Peak/Dip) einer g²-Kurve: (Index, Halbwertsbreite in Bins) oder None."""
+        h = h.astype(float)
+        s = np.convolve(h, np.ones(sm) / sm, "same")[sm:-sm] if sm > 1 else h
+        n = s.size
+        edge = np.concatenate([s[: n // 10], s[-n // 10:]])
+        base = float(np.median(edge))
+        dev = s - base
+        i = int(np.argmax(np.abs(dev)))
+        sig = np.sqrt(max(base, 1.0) / sm)
+        if abs(dev[i]) < nsig * sig or abs(dev[i]) < 0.1 * max(base, 1.0):
+            return None
+        half = abs(dev[i]) / 2
+        sg = np.sign(dev[i])
+        lo = i
+        while lo > 0 and sg * dev[lo - 1] > half:
+            lo -= 1
+        hi = i
+        while hi < n - 1 and sg * dev[hi + 1] > half:
+            hi += 1
+        return i + sm, hi - lo + 1
+
+    def _autogeom(self, chans) -> None:
+        """Fenster/Bereich für cw einmalig festlegen.
+        Schmales Merkmal (feine Kalibrierkurve oder FWHM < 50 ns) → Standardwerte bleiben.
+        Breites Merkmal → Fenster = FWHM/6, Bereich = ±3·FWHM. Kein Merkmal (z. B. Laser) → Fenster
+        nach Statistik (≈ 100 Quadrupel/s), nur mit ≥ 3 Datenkanälen."""
+        c = self.cfg
+        old = (c.win_ps, c.range_ps)
+        fwhm = None
+        narrow = any(self._feature(h, 2 * CAL_SMOOTH, 6.0) is not None for h in self.cal.values()) if self.cal else False
+        f = self._feature(self.geo_h, 3)
+        if f is not None:
+            fwhm = f[1] * GEO_BW
+        basis = "Standard"
+        if f is not None and fwhm >= 50_000 and not narrow:
+            w = int(min(GEO_WIN_MAX, max(c.win_ps, fwhm / GEO_WIN_FRAC)))
+            rg = int(min(5e7, max(c.range_ps, GEO_RANGE_FRAC * fwhm)))
+            basis = "g2-Breite"
+        elif narrow or f is not None:
+            w, rg = old
+            if fwhm is None:
+                fwhm = 0
+            basis = "Standard"
+        else:
+            data = [k for k in chans if k >= 1]
+            T = max(self.T, 1.0) / 1e12
+            r = sorted((self.n.get(k, 0) / T for k in data), reverse=True)
+            if len(r) >= 3 and min(r[:3]) > 0:
+                rr = r[:4] if len(r) >= 4 else r[:3]
+                k = len(rr) - 1           # Anzahl Fensterfaktoren
+                prod = float(np.prod(rr))
+                w = (GEO_Q_PER_S / prod) ** (1 / k) * 1e12
+                w = int(min(GEO_WIN_MAX, max(c.win_ps, w)))
+                rg = int(min(5e7, max(c.range_ps, 3 * w)))
+                basis = "Statistik"
+            else:
+                w, rg = old
+        w = int(float(f"{w:.2g}")); rg = int(float(f"{rg:.2g}"))
+        self.geo = {"basis": basis, "fwhm_ps": (None if fwhm is None else float(fwhm)), "win_ps": w,
+                    "range_ps": rg, "changed": (w, rg) != old}
+        if (w, rg) != old:
+            c.win_ps, c.range_ps = w, rg
+            self.reset(full=False)
 
     def _calibrate(self, chans) -> None:
         rel = {}
@@ -255,13 +354,19 @@ class GnEngine:
                 elif b in delays and a not in delays:
                     delays[a] = delays[b] - tau; changed = True
         delays = {k: round(v / 10) * 10.0 for k, v in delays.items()}
-        self.cfg.delays = {k: v for k, v in delays.items() if v != 0.0}
+        new = {k: v for k, v in delays.items() if v != 0.0}
+        changed = new != self.cfg.delays
+        self.cfg.delays = new
         self.cal_done = True
         self.cal_found = rel
+        self._cal_changed = changed
         miss = sorted(k for k in chans if k not in delays)
         self.cal_status = "ok" if not miss else ("kein_merkmal" if len(delays) == 1 else "teilweise")
+        if self.cal_status == "kein_merkmal" and self.geo and (self.geo.get("fwhm_ps") or 0) >= 30_000:
+            self.cal_status = "unnoetig"   # breite Korrelation (≫ Kabelversatz): Laufzeiten vernachlässigbar
         self.cal_missing = miss if len(delays) > 1 else []
-        self.reset(full=False)
+        if changed:
+            self.reset(full=False)
 
     # ------------------------------------------------------------ Ergebnis
     def result(self) -> dict:
@@ -291,7 +396,8 @@ class GnEngine:
                 "cube4": self._norm(self.cube4, c.combo4, c.nb4), "delays": dict(c.delays),
                 "cal_done": self.cal_done,
                 "cal_status": (getattr(self, "cal_status", "vorgegeben") if self.cal_done else "läuft"),
-                "cal_missing": list(getattr(self, "cal_missing", [])), "range_ps": self._w(c.nb3)[0], "range4_ps": self._w(c.nb4)[0],
+                "cal_missing": list(getattr(self, "cal_missing", [])), "geo": self.geo,
+                "win_ps": c.win_ps, "range_set_ps": c.range_ps, "range_ps": self._w(c.nb3)[0], "range4_ps": self._w(c.nb4)[0],
                 "bw3_ps": self._w(c.nb3)[1], "bw4_ps": self._w(c.nb4)[1], "n3": int(self.map3.sum()),
                 "n4": int(self.cube4.sum()), "stats": dict(self.stats), "backend": c.backend or K.BACKEND}
 

@@ -11,7 +11,7 @@ from tools.validate_gx import evaluate
 ROOT = Path(__file__).resolve().parent.parent
 
 # kurze Dateien für schnelle Tests (Dauer in s); Toleranzen nach Zählstatistik gewählt
-SHORT = {"thermal_cw": 4, "thermal_pulsed": 1, "laser_cw": 2, "single_cw": 2, "single_pulsed": 2,
+SHORT = {"thermal_cw": 3, "thermal_pulsed": 1, "laser_cw": 2, "single_cw": 2, "single_pulsed": 2,
          "heralded_cw": 8, "hom_scan": 10}
 
 
@@ -42,7 +42,9 @@ def test_unit_poisson_is_one():
 
 def test_thermal_cw(results):
     r = results["thermal_cw"]
-    assert rel(r["g2"], 2) < 0.05 and rel(r["g3"], 6) < 0.10 and rel(r["g4"], 24) < 0.20
+    ex = SCENARIOS["thermal_cw"]["expected"]   # über das Fenster (50 ns, τc 400 ns) gemittelte Sollwerte
+    assert rel(r["g2"], ex["g2"]) < 0.03 and rel(r["g3"], ex["g3"]) < 0.08 and rel(r["g4"], ex["g4"]) < 0.15
+    assert r["n4"] > 200
 
 
 def test_thermal_pulsed(results):
