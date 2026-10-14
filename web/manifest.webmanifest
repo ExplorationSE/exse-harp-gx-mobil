@@ -1,0 +1,11 @@
+{
+  "name": "ExSE Harp GX Mobil",
+  "short_name": "Harp GX Mobil",
+  "description": "Live-Histogramme einer simulierten HydraHarp 500 aus PTU-Dateien – noch ohne Geräteanbindung",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "de",
+  "icons": [{ "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
