@@ -48,10 +48,10 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
                 else:
                     keep_cal = False
                 cfg = GnConfig(**d)
-                cal = eng.cal_done
+                cal = (eng.cal_done, getattr(eng, "cal_status", "vorgegeben"), list(getattr(eng, "cal_missing", [])))
                 eng.configure(cfg)
                 if keep_cal:
-                    eng.cal_done = cal
+                    eng.cal_done, eng.cal_status, eng.cal_missing = cal
                 dirty = True
             elif kind == "reset":
                 eng.reset(full=m[1])
@@ -60,6 +60,7 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
                 eng.cfg.delays = {}
                 eng.reset(full=True)
                 eng.cal_done = not eng.cfg.auto_cal
+                eng.cal_status, eng.cal_missing = "vorgegeben", []
                 dirty = True
             elif kind == "ev":
                 eng.feed(m[1], m[2])

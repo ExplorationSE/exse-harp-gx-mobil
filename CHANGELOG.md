@@ -1,5 +1,17 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.1-dev – 14.10.2026
+
+- Thermisch cw live (g³/g⁴ = 0, keine Kalibrierung): kein Rechenfehler, sondern Statistik bzw. Einstellung.
+  Mit den cw-Standardwerten (±25 ns, Fenster 2 ns) fallen bei 100 kHz/Kanal nur ≈ 0,02 Tripel/s und ≈ 10⁻⁵
+  Quadrupel/s an. τc = 50 µs ist breiter als der Kalibrierbereich (±20 ns), daher hat g² dort kein Merkmal.
+  Mit Fenster 0,5 µs und Bereich ±2 µs ergibt dieselbe Datei 1,99 / 6 / 23,5.
+- Kacheln mit weniger als 10 Koinzidenzen zeigen „sammelt Daten …“ mit der Anzahl n statt g = 0.
+  Leere Karten zeigen den Hinweis „Sammelt Daten …“.
+- Kalibrierung ohne Merkmal (z. B. kohärenter Laser) rechnet ohne Offsets weiter und zeigt einen Hinweis.
+  Eine unvollständige Kalibrierung nennt die Kanäle ohne Offset. Neue Felder `cal_status` und `cal_missing`.
+- Tests: Laser-Rückfall ohne Offsets, Markierung bei zu wenig Koinzidenzen. Service-Worker-Cache r3.
+
 ## 0.2.0 – 14.10.2026
 
 - Live-Rechenkern `harp/gx` (Numba, parallel; NumPy-Rückfall mit identischen Ergebnissen, erzwingbar mit

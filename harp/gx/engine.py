@@ -22,7 +22,8 @@ CAL_W = 20_000          # ±20 ns
 CAL_BW = 50             # 50 ps
 CAL_NB = 2 * CAL_W // CAL_BW
 CAL_SMOOTH = 20         # 1 ns
-CAL_MIN_T_PS = 2e12     # Kalibrierung nach 2 s Messzeit
+CAL_MIN_T_PS = 2e12
+MIN_COUNTS = 10       # darunter: Kachel gilt als „sammelt Daten“ (kein Zahlenwert)     # Kalibrierung nach 2 s Messzeit
 SIDE_SETS = [(1, 2, 3), (-1, -2, -3), (2, 3, 1), (-2, -3, -1)]
 
 
@@ -61,6 +62,7 @@ class GnEngine:
         if cfg.delays != self.cfg.delays:
             # Laufzeiten vorgegeben → keine Auto-Kalibrierung; leer → neu kalibrieren (falls auto_cal)
             self.cal_done = bool(cfg.delays) or not cfg.auto_cal
+            self.cal_status, self.cal_missing = "vorgegeben", []
             self.cal = {}
             self.cal_T = 0.0
         self.cfg = cfg
@@ -256,6 +258,9 @@ class GnEngine:
         self.cfg.delays = {k: v for k, v in delays.items() if v != 0.0}
         self.cal_done = True
         self.cal_found = rel
+        miss = sorted(k for k in chans if k not in delays)
+        self.cal_status = "ok" if not miss else ("kein_merkmal" if len(delays) == 1 else "teilweise")
+        self.cal_missing = miss if len(delays) > 1 else []
         self.reset(full=False)
 
     # ------------------------------------------------------------ Ergebnis
@@ -271,18 +276,22 @@ class GnEngine:
                 acc = self.n.get(combo[0], 0) * np.prod([self.n.get(x, 0) / T * c.win_ps if T > 0 else 0
                                                           for x in combo[1:]])
                 g = cnt / acc if acc > 0 else float("nan")
-            tiles.append({"ch": list(combo), "g": g, "n": cnt,
+            if cnt < MIN_COUNTS:
+                g = float("nan")
+            tiles.append({"ch": list(combo), "g": g, "n": cnt, "low": cnt < MIN_COUNTS,
                           "err": (g / np.sqrt(cnt) if cnt > 0 and np.isfinite(g) else None)})
         for combo, cnt in self.center.items():   # Heralded g²: K0 als Herald
             if len(combo) == 3 and combo[0] == 0:
                 n1 = self.center.get((0, combo[1]), 0.0); n2 = self.center.get((0, combo[2]), 0.0)
                 nh = self.n.get(0, 0)
-                g = nh * cnt / (n1 * n2) if n1 > 0 and n2 > 0 else float("nan")
-                tiles.append({"ch": list(combo), "g": g, "n": cnt, "kind": "g2h",
-                              "err": (g / np.sqrt(cnt) if cnt > 0 else None)})
+                g = nh * cnt / (n1 * n2) if n1 > 0 and n2 > 0 and cnt >= MIN_COUNTS else float("nan")
+                tiles.append({"ch": list(combo), "g": g, "n": cnt, "low": cnt < MIN_COUNTS, "kind": "g2h",
+                              "err": (g / np.sqrt(cnt) if cnt > 0 and np.isfinite(g) else None)})
         return {"T_s": T / 1e12, "tiles": tiles, "map3": self._norm(self.map3, c.combo3, c.nb3),
                 "cube4": self._norm(self.cube4, c.combo4, c.nb4), "delays": dict(c.delays),
-                "cal_done": self.cal_done, "range_ps": self._w(c.nb3)[0], "range4_ps": self._w(c.nb4)[0],
+                "cal_done": self.cal_done,
+                "cal_status": (getattr(self, "cal_status", "vorgegeben") if self.cal_done else "läuft"),
+                "cal_missing": list(getattr(self, "cal_missing", [])), "range_ps": self._w(c.nb3)[0], "range4_ps": self._w(c.nb4)[0],
                 "bw3_ps": self._w(c.nb3)[1], "bw4_ps": self._w(c.nb4)[1], "n3": int(self.map3.sum()),
                 "n4": int(self.cube4.sum()), "stats": dict(self.stats), "backend": c.backend or K.BACKEND}
 

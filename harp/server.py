@@ -219,13 +219,14 @@ class HarpService:
         s = self.settings
         tiles = [{"ch": t["ch"], "g": (None if t["g"] != t["g"] else round(float(t["g"]), 5)),
                   "n": int(t["n"]), "err": (None if t["err"] is None else round(float(t["err"]), 5)),
-                  "kind": t.get("kind", "g")} for t in r["tiles"]]
+                  "kind": t.get("kind", "g"), "low": bool(t.get("low", False))} for t in r["tiles"]]
         st = r["stats"]
         head = {"type": "gn", "view": view, "T_s": round(r["T_s"], 4), "tiles": tiles,
                 "combo3": list(s.combo3), "combo4": list(s.combo4), "range_ps": r["range_ps"],
                 "range4_ps": r["range4_ps"], "bw3_ps": r["bw3_ps"], "bw4_ps": r["bw4_ps"],
                 "n3": r["n3"], "n4": r["n4"], "period_ps": self.gn_period_ps, "win_ps": s.gn_win_ps,
                 "delays": {str(k): v for k, v in r["delays"].items()}, "cal_done": r["cal_done"],
+                "cal_status": r.get("cal_status", "vorgegeben"), "cal_missing": r.get("cal_missing", []),
                 "backend": r["backend"], "threads": self.gn.info.get("threads"),
                 "latency_ms": round(r.get("latency_s", 0) * 1000, 1),
                 "proc_mtags": round(st["tags"] / st["proc_s"] / 1e6, 2) if st.get("proc_s") else None,

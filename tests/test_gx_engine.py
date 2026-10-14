@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 @pytest.fixture(scope="module")
 def files(tmp_path_factory):
     d = tmp_path_factory.mktemp("gxe")
-    spec = {"thermal_pulsed": 3, "thermal_cw": 3, "single_pulsed": 2, "heralded_cw": 4, "laser_cw": 2}
+    spec = {"thermal_pulsed": 3, "thermal_cw": 3, "single_pulsed": 2, "heralded_cw": 4, "laser_cw": 3}
     return {n: generate(n, d / f"{n}.ptu", dur, seed=33) for n, dur in spec.items()}
 
 
@@ -121,7 +121,7 @@ def test_auto_calibration(files):
     t, c = events(files["thermal_pulsed"])
     eng = run(t, c, GnConfig(channels=[1, 2, 3, 4], range_ps=2_500_000, win_ps=10_000, period_ps=1e6))
     d = eng.result()["delays"]
-    assert eng.cal_done
+    assert eng.cal_done and eng.result()["cal_status"] == "ok"
     for k, v in {2: 1500, 3: 3000, 4: 4500}.items():
         assert abs(d[k] - v) <= 150, d
     t, c = events(files["heralded_cw"])
@@ -214,3 +214,20 @@ def test_server_streams_binary_gn_frames(tmp_path, files, monkeypatch):
         assert len(m["bytes"]) < 200_000
         st = cl.get("/api/status").json()
         assert st["settings"]["gn_range_ps"] == 2_500_000 and st["gn"]["period_ps"] == pytest.approx(1e6)
+
+
+def test_laser_calibration_falls_back_without_offsets(files):
+    t, c = events(files["laser_cw"])
+    eng = run(t, c, GnConfig(channels=[1, 2, 3, 4], range_ps=25_000, win_ps=2000))
+    r = eng.result()
+    assert r["cal_done"] and r["cal_status"] == "kein_merkmal" and r["delays"] == {}
+
+
+def test_low_statistics_tiles_are_marked_not_zero(files):
+    """Thermisch cw mit Live-Standard (±25 ns, 2 ns): Quadrupel ~1/s·10⁻² → „sammelt Daten“, nicht g = 0."""
+    t, c = events(files["thermal_cw"])
+    eng = run(t, c, GnConfig(channels=[1, 2, 3, 4], range_ps=25_000, win_ps=2000, auto_cal=False))
+    tiles = {tuple(x["ch"]): x for x in eng.result()["tiles"]}
+    q = tiles[(1, 2, 3, 4)]
+    assert q["low"] and not np.isfinite(q["g"])
+    assert not tiles[(1, 2)]["low"] and abs(tiles[(1, 2)]["g"] - 2) < 0.4

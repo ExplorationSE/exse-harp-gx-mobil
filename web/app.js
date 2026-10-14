@@ -395,7 +395,7 @@ function renderInfo() {
   const gh = G.head;
   if (gh) {
     const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
-    rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_done ? "" : " (Kalibrierung läuft)")],
+    rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_status === "kein_merkmal" ? " (kein Merkmal – ohne Offsets)" : gh.cal_status === "teilweise" ? " (unvollständig)" : gh.cal_done ? "" : " (Kalibrierung läuft)")],
       ["Rechenkern", `${gh.backend}${gh.threads ? " · " + gh.threads + " Threads" : ""} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame`]);
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
@@ -479,8 +479,8 @@ function buildGnBar() {
 function gnHint() {
   const h = G.head;
   if (!h) return "Warte auf g³/g⁴-Daten …";
-  if (S.view === "g3" && !h.n3) return "Noch keine Tripel im Bereich – Bereich vergrößern oder länger messen.";
-  if (S.view === "g4" && !h.n4) return "Noch keine Quadrupel im Bereich – Bereich vergrößern oder länger messen.";
+  if (S.view === "g3" && !h.n3) return `Sammelt Daten … noch keine Tripel im Bereich (${h.T_s.toFixed(1)} s) – größeres Fenster/Bereich beschleunigt.`;
+  if (S.view === "g4" && !h.n4) return `Sammelt Daten … noch keine Quadrupel im Bereich (${h.T_s.toFixed(1)} s) – größeres Fenster/Bereich beschleunigt.`;
   return "";
 }
 function viridis(t) {
@@ -602,13 +602,22 @@ function drawGnTiles() {
   const mine = h.tiles.filter((t) => t.ch.length === o && t.kind !== "g2h");
   const cur = mine.find((t) => t.ch.join(",") === cmb);
   big.querySelector(".k").textContent = `g${sup(o)}(0${o === 3 ? ",0" : ",0,0"})`;
-  big.querySelector(".v").textContent = cur ? fmtG(cur.g) : "–";
-  big.querySelector(".e").textContent = cur ? `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}` : "";
+  const low = cur && (cur.low || cur.g == null);
+  big.classList.toggle("low", !!low);
+  big.querySelector(".v").textContent = !cur ? "–" : low ? "sammelt Daten …" : fmtG(cur.g);
+  big.querySelector(".e").textContent = !cur ? "" : low ? `n ${fmtCompact(cur.n)} von ≥ 10 · ${h.T_s.toFixed(1)} s` : `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}`;
   big.title = h.period_ps > 0 ? "Seitenpeak-normiert (gepulst)" : "auf Zufallskoinzidenzen normiert (Dauerstrich)";
   const extra = o === 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];
   $("gnList").innerHTML = [...extra, ...mine].map((t) =>
-    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}" title="n = ${t.n}">${lab(t)} <b>${fmtG(t.g)}</b></div>`).join("")
-    + `<div class="muted" title="Koinzidenzfenster">w ${fmtWidth(h.win_ps)}${h.period_ps > 0 ? " · Seitenpeaks" : ""}</div>`;
+    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}" title="n = ${t.n}">${lab(t)} <b>${t.low || t.g == null ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("")
+    + `<div class="muted" title="Koinzidenzfenster">w ${fmtWidth(h.win_ps)}${h.period_ps > 0 ? " · Seitenpeaks" : ""}</div>`
+    + (calNote(h) ? `<div class="calnote">${calNote(h)}</div>` : "");
+}
+function calNote(h) {
+  if (h.cal_status === "kein_merkmal") return "Keine Laufzeit-Kalibrierung möglich (kein Merkmal im g²) – ohne Offsets gerechnet.";
+  if (h.cal_status === "teilweise") return `Kalibrierung unvollständig: ohne Offset für ${h.cal_missing.map((k) => "K" + k).join(", ")}.`;
+  if (h.cal_status === "läuft") return "Laufzeit-Kalibrierung läuft (2 s Messzeit) …";
+  return "";
 }
 
 let resizeT = 0;

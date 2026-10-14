@@ -62,7 +62,7 @@ async def run(port: int, speed: float, secs: float, view: str, only: str | None)
                                 "lat_ms_med": sorted(lats)[len(lats) // 2] if lats else None,
                                 "lat_ms_max": max(lats) if lats else None,
                                 "kB": round(sum(sizes) / len(sizes) / 1000, 1) if sizes else None,
-                                "delays": h["delays"], "backlog": h["backlog"], "backend": h["backend"],
+                                "delays": h["delays"], "cal": h.get("cal_status"), "n4": h.get("n4"), "backlog": h["backlog"], "backend": h["backend"],
                                 "threads": h["threads"], "tiles": tiles}))
     return rows
 

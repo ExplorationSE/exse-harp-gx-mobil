@@ -150,3 +150,6 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
   #chanbox.many .chbtn{min-width:28px;width:28px;font-size:12px}
 }
 @media (max-width:370px){.viewbtn span{padding:7px 5px}.chbtn{min-width:31px;width:31px}#chanbox.many .chbtn{min-width:27px;width:27px}}
+
+#gnBig.low .v { font-size: 1.05rem; color: var(--muted, #94a3b8); }
+#gnList .calnote { flex-basis: 100%; font-size: .78rem; color: #fbbf24; }
