@@ -1,5 +1,17 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.3 – 15.10.2026
+
+- g²-Ansicht: große Kachel g²(0) wie g³(0,0)/g⁴(0,0,0), für das gewählte Kanalpaar (Auswahl wird gespeichert).
+  Mit n, Fehler, Zustand „sammelt Daten …“, cw- bzw. Seitenpeak-Normierung und g²ₕ bei K0 als Herald.
+  Die Werte kommen aus dem GX-Rechenkern. Ohne GX-Daten (z. B. snAPI-Quelle) bleibt die Leiste ausgeblendet.
+- Leiste unter g², g³ und g⁴ einheitlich aufgebaut:
+  - Reihenfolge: Kanalauswahl (feste Breite) und Darstellung, dann große Kachel (feste Größe 124 × 80 px)
+    mit Kachelliste, dann graue Hinweiszeile.
+  - Die Hinweiszeile enthält Fenster, Normierung, Messzeit, automatisches Fenster/Bereich und Kalibrierung.
+  - Gleiche Abstände; der τ₃-Regler sitzt jetzt im g⁴-Diagrammbereich.
+- Test für den Aufbau der Leiste. Service-Worker-Cache r7.
+
 ## 0.2.2 – 15.10.2026
 
 - Farbskala neben den g³/g⁴-Karten: logarithmische 1-2-5-Teilung (0,1 · 0,2 · 0,5 · 1 · 2 · 5 · 10 · 20 …) über

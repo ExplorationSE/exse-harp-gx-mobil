@@ -56,6 +56,10 @@ with sync_playwright() as p:
             report.append((w, v, "einzeilig" if len(set(row["tops"])) == 1 else f"MEHRZEILIG {row['tops']}",
                            f"rechts {row['right']}/{row['vw']}", "Überlauf!" if row["overflow"] else ""))
         time.sleep(9 if w == 360 else 3)
+        pg.click('#viewBtn span[data-v="corr"]'); time.sleep(1.5)
+        wait_filled(pg)
+        pg.screenshot(path=str(OUT / f"{PREFIX}-g2-{w}.png"), full_page=False)
+        report.append((w, "g2-Leiste", pg.evaluate("() => { const b = document.querySelector('#gnbar'); const r = b.getBoundingClientRect(); return {sichtbar: !b.hidden, top: Math.round(r.top), groß: document.querySelector('#gnBig .k').textContent}; }")))
         pg.click('#viewBtn span[data-v="g3"]'); time.sleep(1.5)
         pg.click('#gnMode button[data-m="map"]'); time.sleep(1.2)
         wait_filled(pg)

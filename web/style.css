@@ -137,7 +137,7 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
 .sl input{flex:1;accent-color:var(--acc)}
 .sl output{min-width:72px;text-align:right;font-variant-numeric:tabular-nums;color:var(--mut)}
 .gntiles{align-items:stretch}
-.gnbig{flex:0 0 auto;min-width:118px;border:1px solid var(--acc);border-radius:12px;padding:6px 10px;background:#0b1222;text-align:center}
+.gnbig{flex:0 0 124px;width:124px;height:80px;box-sizing:border-box;border:1px solid var(--acc);border-radius:12px;padding:6px 8px;background:#0b1222;text-align:center;display:flex;flex-direction:column;justify-content:center}
 .gnbig .k{font-size:12px;color:var(--mut)}.gnbig .v{font-size:28px;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums;line-height:1.15}
 .gnbig .e{font-size:11px;color:var(--mut)}
 .gnlist{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:4px;align-content:start;font-size:12px}
@@ -152,10 +152,16 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
 @media (max-width:370px){.viewbtn span{padding:7px 5px}.chbtn{min-width:31px;width:31px}#chanbox.many .chbtn{min-width:27px;width:27px}}
 
 #gnBig.low .v { font-size: 1.05rem; color: var(--mut); }
-#gnList .calnote { flex-basis: 100%; grid-column: 1 / -1; white-space: normal; overflow: visible; text-overflow: clip; font-size: .78rem; color: var(--mut); border-style: dashed; }
+.gnnotes{margin:6px 0 2px;font-size:12px;line-height:1.4;color:var(--mut)}
+.gnnotes:empty{display:none}
+.gnrow .seg[hidden]{display:none}
+.gnlist div.her{border-style:dashed}
 .charthint.info{border-color:var(--line);color:var(--mut)}
 .gnbig .k{font-size:13px}
 /* g mit Exponent: g etwas größer, Exponent ≈ 70 % der g-Größe und angehoben */
 .gx{font-size:1.18em;line-height:0;white-space:nowrap}
 .gx sup{font-size:.7em;vertical-align:.55em;line-height:0;margin-left:.04em}
 .gx sub{font-size:.7em;vertical-align:-.25em;line-height:0}
+.gnrow #gnCombo{flex:0 0 132px;width:132px}
+.gnslider{padding:0 8px 2px}
+.gnbar > .gnrow:first-child{min-height:35px}

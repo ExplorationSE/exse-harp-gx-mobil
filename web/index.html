@@ -29,7 +29,8 @@
       <div id="histPlot" class="plot"></div>
       <div id="tracePlot" class="plot" hidden></div>
       <div id="corrPlot" class="plot" hidden></div>
-      <div id="gnPlot" class="plot" hidden><canvas id="gnCanvas"></canvas><div id="gnCut"></div></div>
+      <div id="gnPlot" class="plot" hidden><canvas id="gnCanvas"></canvas><div id="gnCut"></div>
+        <div id="gnSliderRow" class="gnrow gnslider" hidden><label class="sl">τ₃ <input id="gnTau3" type="range" min="0" max="31" step="1"><output id="gnTau3v"></output></label></div></div>
       <div id="chartHint" class="charthint" hidden></div>
     </div>
     <div id="readout" class="readout">&nbsp;</div>
@@ -38,13 +39,11 @@
         <select id="gnCombo" aria-label="Kanal-Kombination"></select>
         <div id="gnMode" class="seg" role="group" aria-label="Darstellung"></div>
       </div>
-      <div id="gnSliderRow" class="gnrow" hidden>
-        <label class="sl">τ₃ <input id="gnTau3" type="range" min="0" max="31" step="1"><output id="gnTau3v"></output></label>
-      </div>
       <div class="gnrow gntiles">
         <div id="gnBig" class="gnbig"><div class="k">g(0)</div><div class="v">–</div><div class="e"></div></div>
         <div id="gnList" class="gnlist"></div>
       </div>
+      <div id="gnNotes" class="gnnotes"></div>
     </div>
   </section>
 

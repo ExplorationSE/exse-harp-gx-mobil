@@ -33,3 +33,16 @@ def test_color_ticks_125_and_reference_one():
     assert 1 in e and 3 <= len(e) <= 4               # ausgedünnt, 1 bleibt
     for t in (a, b, c, d, e):
         assert t == sorted(t) and len(t) >= 2
+
+
+def test_gn_bar_structure_same_for_g2_g3_g4():
+    """Leiste unter den Diagrammen: Auswahl, große Kachel, Kachelliste, graue Hinweise (in dieser Reihenfolge);
+    τ₃-Regler sitzt im Diagrammbereich, damit die Leiste in allen drei Ansichten gleich aufgebaut ist."""
+    html = (APP.parent / "index.html").read_text(encoding="utf-8")
+    bar = html[html.index('id="gnbar"'):html.index("</section>", html.index('id="gnbar"'))]
+    order = [bar.index(x) for x in ('id="gnCombo"', 'id="gnBig"', 'id="gnList"', 'id="gnNotes"')]
+    assert order == sorted(order) and "gnSliderRow" not in bar
+    plot = html[html.index('id="gnPlot"'):html.index('id="chartHint"')]
+    assert "gnSliderRow" in plot
+    js = APP.read_text(encoding="utf-8")
+    assert "corr: 2, g3: 3, g4: 4" in js and 'localStorage.setItem("harp.gn2"' in js

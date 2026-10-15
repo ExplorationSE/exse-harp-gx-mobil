@@ -218,7 +218,14 @@ function bindControls() {
   $("gn_range_ps").onchange = (e) => command("set", { gn_range_ps: parseInt(e.target.value) });
   $("gn_win_ps").onchange = (e) => command("set", { gn_win_ps: parseInt(e.target.value) });
   $("bRecal").onclick = () => command("gn_recal");
-  $("gnCombo").onchange = (e) => command("set", { [S.view === "g4" ? "combo4" : "combo3"]: e.target.value.split(",").map(Number) });
+  $("gnCombo").onchange = (e) => {
+    const v = e.target.value.split(",").map(Number);
+    if (S.view === "corr") {           // g²-Paar: nur Anzeige (alle Paare werden ohnehin berechnet)
+      G.combo2 = v; try { localStorage.setItem("harp.gn2", v.join(",")); } catch (x) { /* privat */ }
+      buildGnBar(); drawGnTiles(); return;
+    }
+    command("set", { [S.view === "g4" ? "combo4" : "combo3"]: v });
+  };
   $("gnTau3").oninput = (e) => { G.tau3 = +e.target.value; drawGn(); };
   $("gnCanvas").addEventListener("pointerdown", gnPick);
   $("gnCanvas").addEventListener("pointermove", (e) => { if (e.buttons) gnPick(e); });
@@ -229,7 +236,8 @@ function setView(v) {
   document.querySelectorAll("#viewBtn span").forEach((x) => x.classList.toggle("on", x.dataset.v === v));
   $("histPlot").hidden = v !== "hist"; $("tracePlot").hidden = v !== "trace"; $("corrPlot").hidden = v !== "corr";
   const gn = v === "g3" || v === "g4";
-  $("gnPlot").hidden = !gn; $("gnbar").hidden = !gn;
+  $("gnPlot").hidden = !gn;
+  if (showGnBar()) { buildGnBar(); drawGnTiles(); }
   $("readout").innerHTML = "&nbsp;"; $("readout").dataset.auto = "1";
   sendView();
   if (gn) { buildGnBar(); drawGn(); }
@@ -414,6 +422,7 @@ function onFrame(m, len) {
 // ------------------------------------------------------------------ GX: g³ / g⁴
 // Binär-Frame: "GXF1" | uint32 Kopf-Länge | JSON-Kopf | deflate(uint16-Felder, log-kodiert)
 const G = { head: null, map3: null, cube4: null, bytes: 0, tau3: null, cut: null, cutKey: "",
+  combo2: (localStorage.getItem("harp.gn2") || "").split(",").filter(Boolean).map(Number),
   mode3: localStorage.getItem("harp.gn3") || "map", mode4: localStorage.getItem("harp.gn4") || "slice", geom: null };
 const VIRIDIS = [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
 function sendView() { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify({ type: "view", v: S.view })); }
@@ -434,7 +443,8 @@ async function onBinary(buf) {
     G[m.name] = { v: f, nb: m.shape[0] };
   }
   G.head = h; G.bytes = buf.byteLength;
-  if (S.view === "g3" || S.view === "g4") { buildGnBar(); drawGn(); }
+  if (S.view === "g3" || S.view === "g4") { showGnBar(); buildGnBar(); drawGn(); }
+  else if (S.view === "corr" && showGnBar()) { buildGnBar(); drawGnTiles(); }
 }
 function fillGnControls(st) {
   const s = st.settings, info = st.info || {};
@@ -447,7 +457,7 @@ function fillGnControls(st) {
   opt("gn_win_ps", [100, 200, 500, 1e3, 2e3, 4e3, 6e3, 1e4, 2e4, 1e5, 5e5, 1e6, 2e6], s.gn_win_ps);
   G.ids = chanIds(info.first_channel ?? 1, Math.min(info.num_channels || 4, 8));
   G.combo3 = s.combo3; G.combo4 = s.combo4;
-  if (S.view === "g3" || S.view === "g4") buildGnBar();
+  if (gnOrder() && !$("gnbar").hidden) buildGnBar();
 }
 function combos(ids, k) {
   const out = [], rec = (st, acc) => { if (acc.length === k) { out.push(acc.slice()); return; }
@@ -457,8 +467,21 @@ function combos(ids, k) {
 // g mit Exponent typografisch (Exponent ≈ 70 % der g-Größe, angehoben), überall gleich
 const gsym = (s) => String(s).replace(/g([²³⁴])/g, (m, c) => `<span class="gx">g<sup>${({ "²": 2, "³": 3, "⁴": 4 })[c]}</sup></span>`);
 const sup = (o) => (o === 3 ? "³" : o === 4 ? "⁴" : "²");
+// Ordnung der Ansicht: g² (corr) = 2, g³ = 3, g⁴ = 4, sonst 0
+const gnOrder = () => ({ corr: 2, g3: 3, g4: 4 })[S.view] || 0;
+function gnCombo2() {
+  const ids = G.ids || [1, 2, 3, 4], pairs = combos(ids, 2).map((c) => c.join(","));
+  if (G.combo2.length === 2 && pairs.includes(G.combo2.join(","))) return G.combo2;
+  const data = ids.filter((k) => k >= 1);
+  return data.length >= 2 ? data.slice(0, 2) : ids.slice(0, 2);
+}
+function showGnBar() {
+  const o = gnOrder();
+  $("gnbar").hidden = !o || (o === 2 && !G.head);   // g²: nur wenn der GX-Rechenkern Daten liefert
+  return !$("gnbar").hidden;
+}
 function buildGnBar() {
-  const o = S.view === "g4" ? 4 : 3, ids = G.ids || [1, 2, 3, 4], cur = (o === 3 ? G.combo3 : G.combo4) || [];
+  const o = gnOrder() || 3, ids = G.ids || [1, 2, 3, 4], cur = (o === 2 ? gnCombo2() : o === 3 ? G.combo3 : G.combo4) || [];
   const sel = $("gnCombo"), list = combos(ids, o), key = o + "|" + ids.join(",") + "|" + cur.join(",");
   if (sel.dataset.k !== key) {
     const all = list.map((c) => c.join(","));
@@ -467,8 +490,9 @@ function buildGnBar() {
       : `<option>zu wenige Kanäle</option>`;
     sel.disabled = !list.length; sel.value = cur.join(","); sel.dataset.k = key;
   }
-  const modes = o === 3 ? [["map", "Karte"], ["diag", "Diag."], ["t1", "τ₁=0"], ["t2", "τ₂=0"]] : [["slice", "Schnitt τ₃"], ["diag", "Diagonale"]];
+  const modes = o === 2 ? [] : o === 3 ? [["map", "Karte"], ["diag", "Diag."], ["t1", "τ₁=0"], ["t2", "τ₂=0"]] : [["slice", "Schnitt τ₃"], ["diag", "Diagonale"]];
   const cm = o === 3 ? G.mode3 : G.mode4, seg = $("gnMode"), mk = o + cm;
+  seg.hidden = !modes.length;
   if (seg.dataset.k !== mk) {
     seg.innerHTML = modes.map(([v, t]) => `<button type="button" data-m="${v}" class="${v === cm ? "on" : ""}">${t}</button>`).join("");
     seg.querySelectorAll("button").forEach((b) => b.onclick = () => {
@@ -623,24 +647,29 @@ function drawGn() {
   }
 }
 function drawGnTiles() {
-  const h = G.head, o = S.view === "g4" ? 4 : 3, big = $("gnBig");
-  if (!h) { big.querySelector(".v").textContent = "–"; $("gnList").innerHTML = ""; return; }
-  const cmb = (o === 3 ? h.combo3 : h.combo4).slice().sort((a, b) => a - b).join(",");
+  const h = G.head, o = gnOrder() || 3, big = $("gnBig");
+  const zero = o === 2 ? "0" : o === 3 ? "0,0" : "0,0,0";
+  big.querySelector(".k").innerHTML = `<span class="gx">g<sup>${o}</sup></span>(${zero})`;
+  if (!h) { big.querySelector(".v").textContent = "–"; big.querySelector(".e").textContent = ""; $("gnList").innerHTML = ""; $("gnNotes").innerHTML = ""; return; }
+  const cmb = (o === 2 ? gnCombo2() : o === 3 ? h.combo3 : h.combo4).slice().sort((a, b) => a - b).join(",");
   const lab = (t) => (t.kind === "g2h" ? `<span class="gx">g<sup>2</sup><sub>h</sub></span> K${t.ch[0]}|K${t.ch[1]}K${t.ch[2]}` : `K${t.ch.join("K")}`);
   const fmtG = (g) => (g == null ? "–" : g >= 100 ? g.toFixed(0) : g >= 10 ? g.toFixed(1) : g.toFixed(g < 0.1 ? 3 : 2));
+  const isLow = (t) => t.low || t.g == null;
   const mine = h.tiles.filter((t) => t.ch.length === o && t.kind !== "g2h");
   const cur = mine.find((t) => t.ch.join(",") === cmb);
-  big.querySelector(".k").innerHTML = `<span class="gx">g<sup>${o}</sup></span>(0${o === 3 ? ",0" : ",0,0"})`;
-  const low = cur && (cur.low || cur.g == null);
+  const low = cur && isLow(cur);
   big.classList.toggle("low", !!low);
   big.querySelector(".v").textContent = !cur ? "–" : low ? "sammelt Daten …" : fmtG(cur.g);
   big.querySelector(".e").textContent = !cur ? "" : low ? `n ${fmtCompact(cur.n)} von ≥ 10 · ${h.T_s.toFixed(1)} s` : `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}`;
   big.title = h.period_ps > 0 ? "Seitenpeak-normiert (gepulst)" : "auf Zufallskoinzidenzen normiert (Dauerstrich)";
-  const extra = o === 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];
-  $("gnList").innerHTML = [...extra, ...mine].map((t) =>
-    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}" title="n = ${t.n}">${lab(t)} <b>${t.low || t.g == null ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("")
-    + `<div class="muted" title="Koinzidenzfenster">w ${fmtWidth(h.win_ps)}${h.period_ps > 0 ? " · Seitenpeaks" : ""}</div>`
-    + (calNote(h) ? `<div class="calnote">${gsym(calNote(h))}</div>` : "");
+  const her = o <= 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];
+  $("gnList").innerHTML = [...her, ...mine].map((t) =>
+    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}${t.kind === "g2h" ? " her" : ""}" title="n = ${t.n}">${lab(t)} <b>${isLow(t) ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("");
+  const norm = h.period_ps > 0 ? "Seitenpeak-normiert" : "auf Zufallskoinzidenzen normiert";
+  const notes = [`Fenster ${fmtWidth(h.win_ps)} · ${norm} · ${h.T_s.toFixed(1)} s`];
+  if (her.length) notes.push(`<span class="gx">g<sup>2</sup><sub>h</sub></span>: mit K0 als Herald.`);
+  const c = calNote(h); if (c) notes.push(gsym(c));
+  $("gnNotes").innerHTML = notes.map((x) => `<span>${x}</span>`).join(" ");
 }
 function calNote(h) {
   const n = [], g = h.geo;
