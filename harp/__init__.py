@@ -1,2 +1,2 @@
-"""ExSE Harp GX Mobil – einzige Versionsquelle ist __version__ (auch /api/health, Status). – Live-Histogramme einer (simulierten) PicoQuant HydraHarp 500 im Browser."""
-__version__ = "0.2.4"
+"""ExSE Harp GX Mobil – einzige Versionsquelle ist __version__ (auch /api/health, Status). – Live-Histogramme und g²/g³/g⁴ eines (simulierten) PicoQuant Harp im Browser (z. B. HydraHarp 500, MultiHarp, PicoHarp 330, TimeHarp 260)."""
+__version__ = "0.2.5"

@@ -1,5 +1,26 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.5 – 15.10.2026
+
+- g⁴-Karte wieder genau so groß wie die g³-Karte: 276 px bei 360 px Breite, 306 px bei 390 px.
+  - Der τ₃-Regler sitzt jetzt außerhalb der Diagrammhöhe, an Stelle der Messwertzeile und gleich hoch (18 px).
+  - Messwertzeile, Leiste und Steuerung liegen damit weiter in allen Ansichten auf derselben Höhe.
+  - Im g⁴-Schnitt erscheint ein angetippter Messwert stattdessen in der grauen Hinweiszeile.
+  - Die Kennzahl „Quadrupel … · Bin …“ entfällt dort; die Anzahl steht weiter in der großen Kachel.
+- Zeitverlauf mit derselben Zeichenfläche wie Histo: gleiche Ränder links und rechts, gleiche x-Achsenhöhe.
+  Die Einheit steht jetzt in der x-Beschriftung („t / s · Zählrate / kcps“).
+- Allgemeine Bezeichnung „Harp“ statt „HydraHarp“ in Oberfläche, App-Info, Manifest, README, Anleitung und LIESMICH.
+  - Neuer Hinweistext: „Simulation mit synthetischen PTU-Dateien – diese Version enthält noch keine Schnittstelle
+    zu einem echten Harp.“
+  - Technische Namen bleiben und werden als Beispiel beschrieben: Quelle `hh500`, `HH500LiveSource`.
+  - snAPI unterstützt laut öffentlicher Doku HydraHarp 500/400, MultiHarp 150/160, PicoHarp 330 und
+    TimeHarp 260, nicht PicoHarp 300.
+  - Markenhinweis im README um MultiHarp, PicoHarp und TimeHarp ergänzt.
+- Anleitung aktualisiert: Paketname, Ordner `C:\ExSE\exse-harp-gx-mobil`, Demodateien in `data\`.
+  Das PDF `docs/Anleitung_Windows_Online.pdf` wird neu aus der Anleitung erzeugt (`tools/make_anleitung_pdf.py`);
+  vorher lag dort noch die alte PDF von Harp Mobil V1.
+- `tools/layout_check_gx.py` misst jetzt auch Kartengröße und Zeichenflächen. Service-Worker-Cache r9.
+
 ## 0.2.4 – 15.10.2026
 
 - Alle Ansichten haben jetzt dieselbe Diagrammhöhe: Histo, g², g³, g⁴ und Zeit.

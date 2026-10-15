@@ -238,7 +238,8 @@ function setView(v) {
   const gn = v === "g3" || v === "g4";
   $("gnPlot").hidden = !gn;
   if (showGnBar()) { buildGnBar(); drawGnTiles(); }
-  $("readout").innerHTML = "&nbsp;"; $("readout").dataset.auto = "1";
+  $("readout").innerHTML = "&nbsp;"; $("readout").dataset.auto = "1"; $("readout").hidden = false;
+  $("gnSliderRow").hidden = true;
   sendView();
   if (gn) { buildGnBar(); drawGn(); }
   updateHint();
@@ -365,12 +366,14 @@ function makeTrace(ids) {
   S.trCh = ids.slice();
   ids.forEach((c) => series.push({ label: "K" + c, stroke: chColor(c), width: 1.6, points: { show: false },
     show: !S.hidden.has(c) }));
-  S.trace = new uPlot({ width: plotWidth(chartBox()), height: chartHeight(), series, pxAlign: false, padding: [8, 52, 0, 0],   // = y-Achse 38 + Beschriftung 14
+  // gleiche Zeichenfläche wie Histo/g²: y-Achse ysz links, gleich breiter Rand rechts, x-Achse 30 px
+  const ysz = chartBox().clientWidth < 500 ? 34 : 40;
+  S.trace = new uPlot({ width: plotWidth(chartBox()), height: chartHeight(), series, pxAlign: false, padding: [8, ysz, 0, 0],
     legend: { show: false }, cursor: { points: { size: 6 } },
     scales: { x: { time: false, range: (u, mn, mx) => (mn === mx ? [mn - 1, mx + 1] : [mn, mx]) },
               y: { range: (u, mn, mx) => [0, Math.max(1, (mx || 0) * 1.1)] } }, hooks: { setCursor: [traceReadout] },
-    axes: [{ ...AXIS, label: "t / s", labelSize: 16, labelGap: 0, size: 28, gap: 3, values: (u, sp) => sp.map((v) => String(+v.toFixed(1))) },
-           { ...AXIS, label: "kcps", labelSize: 14, labelGap: 0, size: 38, gap: 3, values: (u, sp) => sp.map(fmtNum) }] }, [[]], el);
+    axes: [{ ...AXIS, label: "t / s  ·  Zählrate / kcps", labelSize: 16, labelGap: 0, size: 30, gap: 3, values: (u, sp) => sp.map((v) => String(+v.toFixed(1))) },
+           { ...AXIS, size: ysz, gap: 3, values: (u, sp) => sp.map(fmtNum) }] }, [[]], el);
 }
 function drawTrace(m) {
   const n = m.rates.length, ids = chanIds(m.first_channel ?? 1, (m.first_channel ?? 1) + n - 1);
@@ -510,7 +513,8 @@ function buildGnBar() {
       buildGnBar(); drawGn(); });
     seg.dataset.k = mk;
   }
-  $("gnSliderRow").hidden = !(o === 4 && G.mode4 === "slice");
+  const sl4 = o === 4 && G.mode4 === "slice";   // Regler sitzt an Stelle der Messwertzeile (gleiche Höhe)
+  $("gnSliderRow").hidden = !sl4; $("readout").hidden = sl4;
 }
 function gnHint() {
   const h = G.head;
@@ -543,8 +547,8 @@ function fmtTau(ns) { return Math.abs(ns) >= 1000 ? +(ns / 1000).toPrecision(3) 
 function tauUnit(Rns) { return Rns >= 2000 ? ["µs", 1000] : ["ns", 1]; }
 // Heatmap: vals[x*nb+y], x → τ1 (rechts), y → τ2 (oben); symmetrische Ränder (Farbskala rechts = Achse links)
 function drawHeat(vals, nb, Rps, xl, yl) {
-  const sl = $("gnSliderRow"), slH = sl.hidden ? 0 : sl.offsetHeight + (parseFloat(getComputedStyle(sl).marginTop) || 0);   // g⁴-Schnitt: Regler gehört zur Diagrammhöhe
-  const cv = $("gnCanvas"), dpr = window.devicePixelRatio || 1, W = plotWidth($("gnPlot")), Hmax = chartHeight() - slH;
+  // g⁴-Schnitt: der τ₃-Regler sitzt an Stelle der Messwertzeile → Karte so groß wie bei g³
+  const cv = $("gnCanvas"), dpr = window.devicePixelRatio || 1, W = plotWidth($("gnPlot")), Hmax = chartHeight();
   const m = mapMargin(W), top = MAP_TOP, bot = MAP_BOT, side = Math.max(60, Math.min(W - 2 * m, Hmax - top - bot));
   const H = side + top + bot;   // quadratische Karte, keine Leerfläche darunter
   cv.style.height = H + "px"; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
@@ -600,6 +604,7 @@ function gnPick(e) {
   const bw = 2 * g.Rps / g.nb, t1 = ((x + 0.5) * bw - g.Rps) / 1000, t2 = ((y + 0.5) * bw - g.Rps) / 1000, v = g.vals[x * g.nb + y];
   $("readout").dataset.auto = "0";
   $("readout").innerHTML = `<b>τ₁ = ${t1.toFixed(2)} ns · τ₂ = ${t2.toFixed(2)} ns</b> · g = ${v > 0 ? v.toPrecision(3) : "–"}`;
+  if ($("readout").hidden) drawGnTiles();     // g⁴-Schnitt: Messwert erscheint in der Hinweiszeile
 }
 function drawCut(xs, ys, xlab, key) {
   const el = $("gnCut");
@@ -677,6 +682,7 @@ function drawGnTiles() {
     `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}${t.kind === "g2h" ? " her" : ""}" title="n = ${t.n}">${lab(t)} <b>${isLow(t) ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("");
   const norm = h.period_ps > 0 ? "Seitenpeak-normiert" : "auf Zufallskoinzidenzen normiert";
   const notes = [`Fenster ${fmtWidth(h.win_ps)} · ${norm} · ${h.T_s.toFixed(1)} s`];
+  if (o === 4 && $("readout").hidden && $("readout").dataset.auto === "0") notes.unshift($("readout").innerHTML + ".");   // angetippter Messwert
   if (her.length) notes.push(`<span class="gx">g<sup>2</sup><sub>h</sub></span>: mit K0 als Herald.`);
   const c = calNote(h); if (c) notes.push(gsym(c));
   $("gnNotes").innerHTML = notes.map((x) => `<span>${x}</span>`).join(" ");

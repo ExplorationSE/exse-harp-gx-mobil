@@ -56,6 +56,10 @@ with sync_playwright() as p:
             report.append((w, v, "einzeilig" if len(set(row["tops"])) == 1 else f"MEHRZEILIG {row['tops']}",
                            f"rechts {row['right']}/{row['vw']}", "Überlauf!" if row["overflow"] else ""))
         time.sleep(9 if w == 360 else 3)
+        if w == 390:
+            for v, nm in (("hist", "histo"), ("trace", "zeit")):
+                pg.click(f'#viewBtn span[data-v="{v}"]'); time.sleep(1.5)
+                pg.screenshot(path=str(OUT / f"{PREFIX}-{nm}-{w}.png"), full_page=False)
         pg.click('#viewBtn span[data-v="corr"]'); time.sleep(1.5)
         wait_filled(pg)
         pg.screenshot(path=str(OUT / f"{PREFIX}-g2-{w}.png"), full_page=False)

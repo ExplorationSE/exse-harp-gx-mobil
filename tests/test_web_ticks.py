@@ -42,8 +42,7 @@ def test_gn_bar_structure_same_for_g2_g3_g4():
     bar = html[html.index('id="gnbar"'):html.index("</section>", html.index('id="gnbar"'))]
     order = [bar.index(x) for x in ('id="gnCombo"', 'id="gnBig"', 'id="gnList"', 'id="gnNotes"')]
     assert order == sorted(order) and "gnSliderRow" not in bar
-    plot = html[html.index('id="gnPlot"'):html.index('id="chartHint"')]
-    assert "gnSliderRow" in plot
+    assert html.index('id="readout"') < html.index('id="gnSliderRow"') < html.index('id="gnbar"')
     js = APP.read_text(encoding="utf-8")
     assert "corr: 2, g3: 3, g4: 4" in js and 'localStorage.setItem("harp.gn2"' in js
 
@@ -55,4 +54,19 @@ def test_all_charts_use_common_height():
     assert not re.search(r"height:\s*histHeight\(\)", js)          # keine uPlot-Höhe mehr direkt aus histHeight
     assert js.count("height: chartHeight()") >= 3                  # Histo/g², Zeit, Schnitte
     heat = js[js.index("function drawHeat"):js.index("function gnPick")]
-    assert "chartHeight() - slH" in heat                            # g⁴-Regler zählt zur Diagrammhöhe
+    assert "Hmax = chartHeight();" in heat and "slH" not in heat   # g⁴-Karte so groß wie g³
+    html = (APP.parent / "index.html").read_text(encoding="utf-8")
+    plot = html[html.index('id="gnPlot"'):html.index('id="chartHint"')]
+    assert "gnSliderRow" not in plot                                # Regler außerhalb der Diagrammhöhe
+    assert html.index('id="readout"') < html.index('id="gnSliderRow"') < html.index('id="gnbar"')
+
+
+def test_generic_harp_naming():
+    root = APP.parent.parent
+    html = (APP.parent / "index.html").read_text(encoding="utf-8")
+    assert "diese Version enthält noch keine Schnittstelle zu einem echten Harp." in html
+    for f in ("web/index.html", "web/app.js", "web/manifest.webmanifest", "ANLEITUNG_WINDOWS.md"):
+        t = (root / f).read_text(encoding="utf-8")
+        assert "echten HydraHarp" not in t and "Harp-Gerät" not in t, f
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert "sind Marken" in readme and "PicoQuant" in readme

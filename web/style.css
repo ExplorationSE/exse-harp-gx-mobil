@@ -163,6 +163,11 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
 .gx sup{font-size:.7em;vertical-align:.55em;line-height:0;margin-left:.04em}
 .gx sub{font-size:.7em;vertical-align:-.25em;line-height:0}
 .gnrow #gnCombo{flex:0 0 132px;width:132px}
-.gnslider{padding:0 8px 2px}
+/* τ₃-Regler (g⁴-Schnitt) ersetzt die Messwertzeile: gleiche Höhe (18 px) → Karten gleich groß, Leiste auf gleicher Höhe */
+.gnslider{height:18px;box-sizing:border-box;padding:0 8px;display:flex;align-items:center}
+.gnslider[hidden]{display:none}
+.gnslider .sl{height:18px;font-size:12px;gap:6px}
+.gnslider input{height:16px;margin:0}
+.gnslider output{min-width:64px;font-size:12px}
 .gnbar > .gnrow:first-child{min-height:35px}
 .gnlist{grid-auto-rows:24px}.gnlist div{box-sizing:border-box;height:24px;line-height:16px}

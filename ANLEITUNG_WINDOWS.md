@@ -1,6 +1,6 @@
 # ExSE Harp GX Mobil – Anleitung: Betrieb unter Windows mit Zugriff vom Handy über das Internet
 
-Diese Anleitung führt Sie Schritt für Schritt durch Installation, Start und Bedienung der Version 1
+Diese Anleitung führt Sie Schritt für Schritt durch Installation, Start und Bedienung von ExSE Harp GX Mobil
 (Simulation aus einer PTU-Datei) auf Ihrem eigenen Windows-PC. Das Handy greift über das Internet
 (z. B. mobile Daten) darauf zu – über einen **Cloudflare Quick Tunnel**. Sie benötigen dafür **kein Konto**,
 keine Router-Einstellung und keine Portfreigabe.
@@ -20,7 +20,7 @@ Handy (Browser, mobile Daten)
 Cloudflare (Internet)
    │  ausgehende Verbindung, von Ihrem PC aufgebaut (cloudflared.exe)
    ▼
-Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1:8765  (nur lokal)
+Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.0.1:8765  (nur lokal)
                                          └─ spielt die Demo-PTU-Datei ab und histogrammiert
 ```
 
@@ -56,17 +56,19 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1
 
 ## 3. Paket entpacken
 
-1. Speichern Sie `harp-v1.zip` z. B. im Ordner „Downloads“.
-2. Rechtsklick → **„Alle extrahieren…“** → Ziel z. B. `C:\HarpGXMobil` (kurzer Pfad ohne Sonderzeichen empfohlen).
-3. Danach gibt es den Ordner `C:\HarpGXMobil\v1` mit u. a. `install_windows.bat`, `start_online.bat`,
-   `stop_online.bat`, `start_server.bat` und `README.md`.
+1. Speichern Sie `exse-harp-gx-mobil-<Version>-programm.zip` und die Daten-Zips z. B. im Ordner „Downloads“.
+2. Rechtsklick → **„Alle extrahieren…“** → Ziel z. B. `C:\ExSE` (kurzer Pfad ohne Sonderzeichen empfohlen).
+3. Danach gibt es den Ordner `C:\ExSE\exse-harp-gx-mobil` mit u. a. `install_windows.bat`, `start_online.bat`,
+   `stop_online.bat`, `start_server.bat`, `LIESMICH.txt` und `README.md`.
+4. Die sieben Demodateien `Demo_Synthetisch_T2_*.ptu` aus den Daten-Zips direkt in
+   `C:\ExSE\exse-harp-gx-mobil\data\` legen (ohne Unterordner).
 
 > Tipp: Falls Windows beim Öffnen der ZIP-Datei warnt, können Sie vor dem Entpacken Rechtsklick auf die ZIP →
 > **Eigenschaften** → unten **„Zulassen“** anhaken → OK. Dann erscheinen später weniger Warnungen.
 
 ## 4. Installation (einmalig): `install_windows.bat`
 
-1. Doppelklick auf **`install_windows.bat`** im Ordner `v1`.
+1. Doppelklick auf **`install_windows.bat`** im Ordner `exse-harp-gx-mobil`.
 2. Falls **„Der Computer wurde durch Windows geschützt“** (SmartScreen) erscheint: auf **„Weitere Informationen“**
    und dann **„Trotzdem ausführen“** klicken. Die Skripte sind unsignierte Textdateien; Sie können sie vorher mit
    dem Editor ansehen.
@@ -78,7 +80,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1
 
 1. Doppelklick auf **`start_online.bat`** (ggf. erneut SmartScreen wie oben bestätigen).
 2. Beim **ersten** Start lädt das Skript automatisch das offizielle Programm **`cloudflared.exe`** von GitHub
-   (Cloudflare, ca. 55 MB) nach `v1\tools\`. Ist cloudflared bereits installiert, wird dieses verwendet.
+   (Cloudflare, ca. 55 MB) nach `exse-harp-gx-mobil\tools\`. Ist cloudflared bereits installiert, wird dieses verwendet.
    *Alternative, falls der Download scheitert:* in einer Eingabeaufforderung
    ```
    winget install --id Cloudflare.cloudflared
@@ -97,7 +99,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1
      ███████████████████…
    ```
 4. **Lassen Sie dieses Fenster offen**, solange Sie testen. Adresse und Code stehen zusätzlich in
-   `v1\logs\online_info.txt` (wird beim Beenden gelöscht).
+   `exse-harp-gx-mobil\logs\online_info.txt` (wird beim Beenden gelöscht).
 5. Falls eine **Windows-Firewall-Meldung** erscheint (für Python oder cloudflared): Für den Tunnel ist **keine**
    eingehende Freigabe nötig. Sie können „Abbrechen“ wählen bzw. nur „Private Netzwerke“ zulassen – der Zugriff
    über das Internet funktioniert trotzdem, weil cloudflared die Verbindung **von innen nach außen** aufbaut.
@@ -155,8 +157,8 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1
 | Paketinstallation scheitert | Internetverbindung prüfen; hinter einem Firmen-Proxy vorher `set HTTPS_PROXY=http://proxy:port` in einer Eingabeaufforderung setzen und `install_windows.bat` von dort starten. |
 | **Firewall-Abfrage** für Python/cloudflared | Für den Tunnel nicht nötig; „Abbrechen“ oder nur „Privat“ ist in Ordnung. |
 | „Port 8765 ist bereits belegt“ | Läuft noch `start_server.bat` oder ein früherer Start? `stop_online.bat` ausführen bzw. das andere Fenster schließen. Anderer Port: in einer Eingabeaufforderung `powershell -ExecutionPolicy Bypass -File start_online.ps1 -Port 8780`. |
-| „Download von cloudflared fehlgeschlagen“ | `winget install --id Cloudflare.cloudflared` oder die Datei `cloudflared-windows-amd64.exe` von <https://github.com/cloudflare/cloudflared/releases/latest> manuell als `v1\tools\cloudflared.exe` speichern. |
-| WARNUNG „Tunnel meldet noch keine Verbindung“ / keine trycloudflare-Adresse | Das Netzwerk (oft **Firmen-/Uni-Netz**) blockiert die ausgehenden Tunnelverbindungen von cloudflared (Port **7844**, UDP/QUIC bzw. TCP). Versuch: Eingabeaufforderung im Ordner `v1` öffnen, `set HARP_TUNNEL_PROTOCOL=http2`, dann `start_online.bat`. Hilft das nicht: anderes Netz (z. B. Handy-Hotspot für den PC) oder IT fragen. Details in `logs\cloudflared.log`. |
+| „Download von cloudflared fehlgeschlagen“ | `winget install --id Cloudflare.cloudflared` oder die Datei `cloudflared-windows-amd64.exe` von <https://github.com/cloudflare/cloudflared/releases/latest> manuell als `exse-harp-gx-mobil\tools\cloudflared.exe` speichern. |
+| WARNUNG „Tunnel meldet noch keine Verbindung“ / keine trycloudflare-Adresse | Das Netzwerk (oft **Firmen-/Uni-Netz**) blockiert die ausgehenden Tunnelverbindungen von cloudflared (Port **7844**, UDP/QUIC bzw. TCP). Versuch: Eingabeaufforderung im Ordner `exse-harp-gx-mobil` öffnen, `set HARP_TUNNEL_PROTOCOL=http2`, dann `start_online.bat`. Hilft das nicht: anderes Netz (z. B. Handy-Hotspot für den PC) oder IT fragen. Details in `logs\cloudflared.log`. |
 | Handy: „Server nicht gefunden“ | 10–60 s warten und neu laden; Adresse genau prüfen (sie ändert sich bei **jedem** Start). |
 | Handy: Anmeldeseite kommt immer wieder | Code falsch oder Server neu gestartet (neuer Code). Code aus dem aktuellen Fenster verwenden. Nach vielen Fehlversuchen kurz warten. |
 | Handy: Seite lädt, aber keine Daten / „getrennt“ | Fenster am PC noch offen? Mobilfunk schwach? Die Seite verbindet sich automatisch neu. Server-Log: `logs\server-online.log`. |
@@ -172,7 +174,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-Mobil-Server  http://127.0.0.1
   vertrauliche Daten später ein VPN (z. B. WireGuard/Tailscale) oder einen benannten Cloudflare-Tunnel mit
   Zugangskontrolle verwenden.
 * **Keine Portfreigabe im Router** einrichten – sie ist nicht nötig.
-* Version 0.1 steuert nur eine **Simulation**. Bei Anschluss des echten Geräts (spätere Version) kommen zusätzliche
+* Diese Version steuert nur eine **Simulation**. Bei Anschluss eines echten Harp (spätere Version) kommen zusätzliche
   Sicherheitsverriegelungen hinzu (z. B. kein Fernschalten eines Laser-Triggers).
 
 ## 11. Für Fortgeschrittene

@@ -3,21 +3,23 @@
 [![Tests](https://github.com/ExplorationSE/exse-harp-gx-mobil/actions/workflows/tests.yml/badge.svg)](https://github.com/ExplorationSE/exse-harp-gx-mobil/actions/workflows/tests.yml)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
 
-Live-Histogramme, Korrelationen und Zählraten für eine PicoQuant **HydraHarp 500** auf dem Smartphone – mit
+Live-Histogramme, Korrelationen g²/g³/g⁴ und Zählraten für ein PicoQuant **Harp** (z. B. HydraHarp 500, MultiHarp,
+PicoHarp 330, TimeHarp 260) auf dem Smartphone – mit
 Steuerung im Browser (PWA); derzeit **Simulation aus PTU-Dateien, noch ohne Geräteanbindung**.
 
 > [!IMPORTANT]
 > **Hinweis – bitte zuerst lesen**
-> - **Noch keine Anbindung an eine echte HydraHarp.** Version 0.1 spielt ausschließlich **PTU-Dateien als
+> - **Noch keine Anbindung an ein echtes Harp.** Diese Version spielt ausschließlich **PTU-Dateien als
 >   Simulation** ab. Die snAPI-Quelle (PTU-Wiedergabe über snAPI) ist unter Windows **ungetestet**, die
->   Live-Quelle für das echte HydraHarp-500-Gerät ist nur ein **Platzhalter**.
+>   Live-Quelle für ein echtes Harp ist nur ein **Platzhalter** (Codename `hh500` nach dem Beispielgerät
+>   HydraHarp 500; snAPI unterstützt laut Doku HydraHarp 500/400, MultiHarp 150/160, PicoHarp 330, TimeHarp 260).
 > - **Erstellt ausschließlich aus öffentlich verfügbaren Informationen:** öffentliche Handbücher und Downloads
 >   von PicoQuant, das öffentliche GitHub-Repository [PicoQuant/snAPI](https://github.com/PicoQuant/snAPI) und die
 >   [PTU-Format-Demos](https://github.com/PicoQuant/PicoQuant-Time-Tagged-File-Format-Demos). Dieses Repository
 >   enthält **keine Dateien von PicoQuant** (keine DLLs, Header, Demo-Code oder snAPI-Wheels); die Demodaten sind
 >   synthetisch erzeugt.
 > - **Kein Produkt der PicoQuant GmbH**, nicht mit ihr verbunden und nicht von ihr unterstützt oder geprüft.
->   HydraHarp, PicoQuant, snAPI und SymPhoTime sind Marken ihrer jeweiligen Inhaber.
+>   PicoQuant, HydraHarp, MultiHarp, PicoHarp, TimeHarp, snAPI und SymPhoTime sind Marken ihrer jeweiligen Inhaber.
 > - **Ohne Gewährleistung** (MIT-Lizenz); nicht für sicherheitskritische Anwendungen bestimmt.
 
 **Download:** [aktuelle Version (Programm, Demodaten, Anleitung als PDF)](https://github.com/ExplorationSE/exse-harp-gx-mobil/releases/latest)
@@ -185,9 +187,10 @@ Voraussetzungen: Windows 10/11 (64 Bit), Internet für die einmalige Installatio
    * Microsoft Visual C++ Redistributable (x64) installieren, falls nicht vorhanden:
      <https://aka.ms/vs/17/release/vc_redist.x64.exe>
    * `pip install snAPI`
-   * Für das echte Gerät zusätzlich das HydraHarp-500-Softwarepaket (Treiber) installieren:
-     <https://downloads.picoquant.com/software/HydraHarp500/Hydraharp_500_Release_v1.0.0.0.zip>
-     und das Gerät einmal mit der PicoQuant-Software prüfen.
+   * Für ein echtes Harp zusätzlich dessen Softwarepaket (Treiber) von <https://www.picoquant.com/downloads/>
+     installieren (Beispiel HydraHarp 500:
+     <https://downloads.picoquant.com/software/HydraHarp500/Hydraharp_500_Release_v1.0.0.0.zip>)
+     und das Harp einmal mit der PicoQuant-Software prüfen.
    * Kontrolle: `python -c "import snAPI"` darf keinen Fehler melden.
 
 ## 3. Starten
@@ -286,7 +289,7 @@ sehen die Daten nur an. Jeder Befehl wird in `logs/commands.jsonl` protokolliert
 2. In der Oberfläche unter „PTU-Datei“ auswählen – oder in `config.toml` `default_file = "meine.ptu"` setzen.
 3. Unterstützte Record-Typen (reine Python-Quelle): PicoHarp 300 T2/T3, HydraHarp V1/V2 T2/T3,
    TimeHarp 260 N/P T2/T3, Generic T2/T3 (MultiHarp, PicoHarp 330). **Welchen Record-Typ die HydraHarp 500
-   schreibt, ist nicht verifiziert** [unsicher]; die synthetische Datei verwendet Generic T3 (`0x00010307`).
+   (Beispiel) schreibt, ist nicht verifiziert** [unsicher]; die synthetische Datei verwendet Generic T3 (`0x00010307`).
    Eine echte HH500-Datei sollte als Erstes mit `python tools/crosscheck.py data\meine.ptu` geprüft werden.
 4. Drei Ansichten (Umschalter über dem Diagramm, Handy: „Histo | g² | Zeit“), für T2 und T3 gleichermaßen:
    * **Histogramm** (Start-Stopp, log): T3 → Mikrozeit (dtime, Start = Sync); T2 → Zeit seit dem letzten
@@ -316,7 +319,7 @@ Synthetische Dateien erzeugen: GX-Demodateien siehe oben (`tools\generate_gx.py`
 python tools\generate_ptu.py --out data\Demo_Synthetisch_T3_Fluoreszenz_4Kanal_5min.ptu --duration 300 --rates 5000,7500,10000,3500
 ```
 
-**Sync als Datenkanal K0 (T2):** Bei T2 ist der Sync-Eingang des HydraHarp ein normaler Zeitkanal; die
+**Sync als Datenkanal K0 (T2):** Bei T2 ist der Sync-Eingang des Harp ein normaler Zeitkanal; die
 Sync-Ereignisse stehen mit Zeitstempel in der Datei (Spezial-Record, Kanal 0). Enthält eine T2-Datei solche
 Ereignisse, erscheinen sie als **K0** (violett): eigene Taste in der Kopfzeile, eigene Zählratenkachel mit
 gemessener Rate (statt „Sync“), Kurven in allen drei Ansichten, als Referenzkanal wählbar (Standard beim
@@ -419,4 +422,5 @@ snAPI-Histogramm ↔ eigenes Histogramm.
 
 MIT-Lizenz, siehe [`LICENSE`](LICENSE) – Copyright (c) 2026 ExplorationSE.
 Enthaltene Fremdsoftware: uPlot (MIT, © Leon Sorokin), Lizenztext in `web/vendor/LICENSE-uPlot.txt`.
-PicoQuant, HydraHarp und snAPI sind Marken bzw. Software der PicoQuant GmbH; dieses Projekt ist davon unabhängig.
+PicoQuant, HydraHarp, MultiHarp, PicoHarp, TimeHarp und snAPI sind Marken bzw. Software der PicoQuant GmbH;
+dieses Projekt ist davon unabhängig.

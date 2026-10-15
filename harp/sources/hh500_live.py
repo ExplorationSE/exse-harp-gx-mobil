@@ -1,4 +1,8 @@
-"""HH500LiveSource – Platzhalter (Stub) für die echte HydraHarp 500 über snAPI.
+"""HH500LiveSource – Platzhalter (Stub) für ein echtes Harp über snAPI.
+
+Der Name folgt dem Beispielgerät HydraHarp 500 (HH500). snAPI unterstützt laut öffentlicher Doku
+(https://picoquant.github.io/snAPI/) u. a. HydraHarp 500, HydraHarp 400, MultiHarp 150/160, PicoHarp 330 und
+TimeHarp 260 (nicht PicoHarp 300); eine spätere Live-Quelle soll für diese Harps gleich funktionieren.
 
 In V1 NICHT implementiert. Die Klasse dokumentiert die geplante Abbildung der Web-Steuerbefehle
 auf snAPI-Aufrufe (Namen aus snAPI/Main.py, Klasse Device bzw. Histogram; ungetestet):
@@ -34,7 +38,7 @@ class HH500LiveSource(DataSource):
         self.params = AcqParams()
 
     def open(self, path: Path | None) -> SourceInfo:
-        raise SourceError("HH500-Live-Quelle ist in V1 nur ein Platzhalter und nicht implementiert. "
+        raise SourceError("Live-Quelle für ein echtes Harp (hh500) ist noch ein Platzhalter und nicht implementiert. "
                           "Bitte source = \"pure\" oder \"snapi\" verwenden.")
 
     def configure(self, params: AcqParams) -> None:
