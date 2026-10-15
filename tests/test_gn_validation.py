@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # kurze Dateien für schnelle Tests (Dauer in s); Toleranzen nach Zählstatistik gewählt
 SHORT = {"thermal_cw": 3, "thermal_pulsed": 1, "laser_cw": 2, "single_cw": 2, "single_pulsed": 2,
-         "heralded_cw": 8, "hom_scan": 10}
+         "heralded_cw": 8, "hom_scan": 10, "pairs_cw": 3, "triplets_cw": 3}
 
 
 @pytest.fixture(scope="module")
@@ -80,6 +80,35 @@ def test_hom_dip(results):
     r = results["hom_scan"]
     assert abs(r["dip_min"] - r["dip_expected"]) < 0.05
     assert r["max_dev"] < 0.08
+
+
+def test_cluster_formula():
+    from tools.generate_gx import cluster_g, pair_allowed, triplet_allowed
+    x = 0.01
+    assert cluster_g([1, 2], x, pair_allowed) == pytest.approx(1 + 1 / x)
+    assert cluster_g([1, 3], x, pair_allowed) == pytest.approx(1)
+    assert cluster_g([1, 2, 3], x, pair_allowed) == pytest.approx(1 + 2 / x)
+    assert cluster_g([1, 2, 3, 4], x, pair_allowed) == pytest.approx(1 + 4 / x + 2 / x ** 2)
+    assert cluster_g([1, 2, 3], x, triplet_allowed) == pytest.approx(1 + 3 / x + 1 / x ** 2)
+    assert cluster_g([1, 3, 4], x, triplet_allowed) == pytest.approx(1 + 2 / x)
+    assert cluster_g([1, 2, 3, 4], x, triplet_allowed) == pytest.approx(1 + 5 / x + 4 / x ** 2)
+
+
+def test_photon_pairs(results):
+    r, ex = results["pairs_cw"], SCENARIOS["pairs_cw"]["expected"]
+    assert rel(r["g2"], ex["g2"]) < 0.03 and rel(r["g2_34"], ex["g2_34"]) < 0.03
+    assert abs(r["g2_13"] - 1) < 0.15 and abs(r["g2_24"] - 1) < 0.15        # gleicher Arm: kein Paar-Peak
+    assert rel(r["g3"], ex["g3"]) < 0.15 and rel(r["g4"], ex["g4"]) < 0.3
+    assert r["g2"] > 300 and r["n3"] > 300 and r["n4"] > 100                 # starker Peak, füllt schnell
+
+
+def test_photon_triplets(results):
+    r, ex = results["triplets_cw"], SCENARIOS["triplets_cw"]["expected"]
+    for k in ("g2", "g2_13", "g2_24"):
+        assert rel(r[k], ex[k]) < 0.03, k
+    assert abs(r["g2_34"] - 1) < 0.3                                       # K3/K4 = derselbe Photonenpfad
+    assert rel(r["g3"], ex["g3"]) < 0.03 and r["g3"] > 1e5                 # ausgeprägter g³(0,0)-Peak
+    assert rel(r["g3_134"], ex["g3_134"]) < 0.3 and rel(r["g4"], ex["g4"]) < 0.35
 
 
 @pytest.mark.parametrize("name", list(SCENARIOS))

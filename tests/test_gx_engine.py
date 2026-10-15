@@ -270,3 +270,11 @@ def test_autogeom_off_for_pulsed(files):
     t, c = events(files["thermal_pulsed"])
     eng = run(t, c, GnConfig(channels=[1, 2, 3, 4], range_ps=2_500_000, win_ps=10_000, period_ps=1e6, auto_geom=True))
     assert eng.result()["geo"] is None and eng.cfg.win_ps == 10_000
+
+
+def test_wire_range_large_g():
+    """Paar-/Tripel-Quellen: g³ ≈ 7·10⁵, g⁴ ≈ 3·10⁶ dürfen im Binär-Frame nicht abgeschnitten werden."""
+    from harp.gx.wire import dequantize, quantize
+    g = np.array([1e-3, 0.05, 1.0, 501.0, 6.97e5, 2.78e6, 5e7])
+    back = dequantize(quantize(g))
+    assert np.all(np.abs(back / g - 1) < 5e-4)

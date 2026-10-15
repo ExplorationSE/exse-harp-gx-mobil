@@ -53,12 +53,21 @@ auch für integrierte Intel-Grafik) und Anzeige auf dem Handy.
 | `Demo_Synthetisch_T2_Einzelphotonen_gepulst_40MHz_4s.ptu` (13,5 MB) | Einzelphotonenquelle gepulst 40 MHz | g²(0)=0,05, g³=g⁴=0 | 0,046 / 0 / 0 |
 | `Demo_Synthetisch_T2_Heralded_K0_g2h_8s.ptu` (12,2 MB) | SPDC-Paare 1 MHz, **K0 = Herald**, K1/K2 (+12/+15 ns) | heralded g²(0)=2·R·w=0,008 (w=4 ns); ohne Herald 1 | 0,0075 / 1,00 |
 | `Demo_Synthetisch_T2_HOM_Dip_Scan_20s.ptu` (14,4 MB) | Hong-Ou-Mandel, Verzögerung −1…+1 ps über die Messzeit, V=0,9 | Koinzidenzen K1–K2 (+8 ns) fallen auf 10 % (Mittel je 1/20 Scan: 0,133) | 0,129 |
+| `Demo_Synthetisch_T2_Photonenpaare_SPDC_cw_3s.ptu` (19,6 MB) | sehr gute Zwei-Photonen-Quelle: SPDC-Paare cw 1 MHz, η = 0,8 je Arm, Signal → K1/K3, Idler → K2/K4, Fenster 2 ns (x = R·w = 0,002) | g²(K1,K2) = 1+1/x = 501, g²(K1,K3) = g²(K2,K4) = 1; g³(K1,K2,K3) = 1+2/x = 1001, g⁴ = 1+4/x+2/x² = 502 001 (ideal); mit 40 ps Jitter-Randverlust 990 / 4,91·10⁵ | 502 / 1,02 / 1004 / 5,21·10⁵ |
+| `Demo_Synthetisch_T2_Photonentripel_cw_5s.ptu` (18,6 MB) | gute Drei-Photonen-Quelle: Tripel cw 600 kHz, η = 0,5, a → K1, b → K2, c → K3/K4, Fenster 2 ns (x = 0,0012) | g² = 1+1/x = 834 (g²(K3,K4) = 1); g³(K1,K2,K3) = 1+3/x+1/x² = 6,97·10⁵, g³(K1,K3,K4) = 1+2/x = 1668; g⁴ = 1+5/x+4/x² = 2,78·10⁶ (mit Jitter 2,75·10⁶) | 833 / 1,01 / 6,97·10⁵ / 1637 / 2,70·10⁶ |
 
 Kabel-Laufzeiten: K2/K3/K4 sind in den 4-Detektor-Dateien um 1,5/3,0/4,5 ns verzögert (wie bei echten Kabeln);
 die Auswertung korrigiert sie. Alle Dateien: Generic T2, 1 ps, mit Detektor-Jitter (25–40 ps) und Dunkelzählungen.
 
+**Paar- und Tripel-Quelle (ab 0.2.7):** Poisson-Strom von Clustern (Paare bzw. Tripel, Photonen eines Clusters
+gleichzeitig). Dann gilt unabhängig von den Effizienzen g⁽ⁿ⁾(0) = Σ x^(b−n), summiert über alle Zerlegungen der n Kanäle
+in b Blöcke, die je aus einem Cluster stammen können; x = R·w (Clusterrate × Fenster). Blöcke ohne das Start-Photon
+verlieren am Fensterrand den Anteil E[Jitter-Spannweite]/w (≈ 2,3 % bei 40 ps, w = 2 ns). Die Sollwerte stehen in
+`tools/generate_gx.py` (`multi_expected`). Das Standardfenster 2 ns bleibt, weil der Peak schmal ist.
+Die Werte werden live in ≈ 1 s Messzeit nach der Kalibrierung (2 s) stabil.
+
 ```bat
-python tools\generate_gx.py --all        REM alle sieben Demodateien nach data\
+python tools\generate_gx.py --all        REM alle neun Demodateien nach data\
 python tools\validate_gx.py              REM g(n) berechnen und mit den Sollwerten vergleichen
 ```
 
@@ -147,7 +156,7 @@ In Version 0.1 kommen die Daten **nicht vom echten Gerät**, sondern aus einer
 | `harp/server.py` | FastAPI-App, WebSocket, Messschleife |
 | `harp/auth.py` | Zugangscode, Anmeldeseite, Sitzungs-Cookie, Fehlversuch-Sperre, Origin-Prüfung |
 | `web/` | Web-App (HTML/CSS/JS, `vendor/uPlot` lokal, Manifest, Service Worker) |
-| `data/` | PTU-Dateien (sieben GX-Demodateien `Demo_Synthetisch_T2_*.ptu`, s. oben) |
+| `data/` | PTU-Dateien (neun GX-Demodateien `Demo_Synthetisch_T2_*.ptu`, s. oben) |
 | `tools/generate_ptu.py` | Generator für synthetische PTU-Dateien |
 | `tools/crosscheck.py` | Gegenprobe des Readers mit `ptufile` und `phconvert` |
 | `tools/ws_client_check.py` | End-to-End-Test gegen den laufenden Server |

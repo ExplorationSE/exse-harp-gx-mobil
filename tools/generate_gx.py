@@ -184,6 +184,97 @@ def hom_scan(duration_s, rng, pair_rate=400_000.0, eta=0.2):
     return _finish(rng, t_list, c_list, duration_s, 2, jitter_ps=30.0, offsets=offs)
 
 
+# ------------------------------------------------ Mehrphotonen-Quellen (Cluster-Prozess, cw)
+PAIR_RATE, PAIR_ETA = 1.0e6, 0.8          # Paare/s, Sammel-/Heralding-Effizienz je Arm
+TRIP_RATE, TRIP_ETA = 6.0e5, 0.5          # Tripel/s, Effizienz je Photon
+MULTI_W = 2000                             # Standard-Koinzidenzfenster der Live-Ansicht (ps, keine Autogeometrie bei schmalem Peak)
+
+
+def _arm(rng, n, eta, chans):
+    """Ausdünnung mit η und Verteilung auf die Detektoren des Arms (50:50 bei zwei Kanälen)."""
+    d = rng.random(n) < eta
+    return d, rng.choice(np.asarray(chans), n)
+
+
+def photon_pairs(duration_s, rng, pair_rate=PAIR_RATE, eta=PAIR_ETA):
+    """Sehr gute Zwei-Photonen-Quelle (SPDC cw, ein Paar je Erzeugung, Poisson-Paarstrom, Mehrpaar-
+    Wahrscheinlichkeit je Fenster R·w = 0,002). Signal → 50:50 → K1/K3, Idler → 50:50 → K2/K4,
+    η = 0,8 je Arm (hohe Sammel-/Heralding-Effizienz), Photonen eines Paares gleichzeitig (± Jitter).
+    Erwartung (Fenster w, x = R·w): g²(K1,K2) = g²(K1,K4) = g²(K3,K2) = g²(K3,K4) = 1 + 1/x,
+    g²(K1,K3) = g²(K2,K4) = 1; g³(K1,K2,K3) = 1 + 2/x; g⁴(K1..K4) = 1 + 4/x + 2/x²."""
+    n = rng.poisson(pair_rate * duration_s)
+    tp = rng.random(n) * duration_s * PS
+    ds, cs = _arm(rng, n, eta, (1, 3))
+    di, ci = _arm(rng, n, eta, (2, 4))
+    return _finish(rng, [tp[ds], tp[di]], [cs[ds], ci[di]], duration_s, 4)
+
+
+def photon_triplets(duration_s, rng, trip_rate=TRIP_RATE, eta=TRIP_ETA):
+    """Gute Drei-Photonen-Quelle (z. B. kaskadierte Emission / Tripel, cw, Poisson-Tripelstrom):
+    Photon a → K1, Photon b → K2, Photon c → 50:50 → K3/K4, η = 0,5 je Photon, kaum Untergrund
+    (nur 100 cps Dunkelzählrate). Erwartung (x = R·w): g²(K1,K2) = g²(K1,K3) = … = 1 + 1/x, g²(K3,K4) = 1;
+    g³(K1,K2,K3) = 1 + 3/x + 1/x²; g³ mit K3 und K4 = 1 + 2/x; g⁴(K1..K4) = 1 + 5/x + 4/x²."""
+    n = rng.poisson(trip_rate * duration_s)
+    tp = rng.random(n) * duration_s * PS
+    da = rng.random(n) < eta
+    db = rng.random(n) < eta
+    dc, cc = _arm(rng, n, eta, (3, 4))
+    return _finish(rng, [tp[da], tp[db], tp[dc]],
+                   [np.full(int(da.sum()), 1), np.full(int(db.sum()), 2), cc[dc]], duration_s, 4)
+
+
+def _partitions(items):
+    if not items:
+        yield []
+        return
+    first, rest = items[0], items[1:]
+    for p in _partitions(rest):
+        for i in range(len(p)):
+            yield p[:i] + [[first] + p[i]] + p[i + 1:]
+        yield [[first]] + p
+
+
+E_RANGE = {1: 0.0, 2: 2 / np.sqrt(np.pi), 3: 3 / np.sqrt(np.pi)}   # mittlere Spannweite von m N(0,1)-Werten
+
+
+def cluster_g(chans, x, allowed, w_ps=None, jitter_ps=0.0):
+    """g⁽ⁿ⁾(0) eines Poisson-Cluster-Prozesses (Photonen eines Clusters gleichzeitig ± Jitter):
+    g = Σ über Zerlegungen der Kanäle in Blöcke, die je aus einem Cluster stammen können, von x^(b−n)·f,
+    x = R·w (Clusterrate × Fensterbreite), b = Zahl der Blöcke. Unabhängig von den Effizienzen.
+    f: Randverlust – ein Block ohne das Start-Photon passt nur ganz ins Fenster, wenn seine Jitter-Spannweite
+    hineinpasst: Faktor 1 − E[Spannweite]/w je solchem Block (bei 40 ps Jitter, w = 2 ns: 0,977)."""
+    n = len(chans)
+    tot = 0.0
+    for p in _partitions(list(chans)):
+        if not all(allowed(frozenset(b)) for b in p):
+            continue
+        f = 1.0
+        if w_ps:
+            for b in p:
+                if chans[0] not in b and len(b) > 1:
+                    f *= 1 - E_RANGE[len(b)] * jitter_ps / w_ps
+        tot += x ** (len(p) - n) * f
+    return tot
+
+
+def pair_allowed(b):
+    return len(b) == 1 or (len(b) == 2 and len(b & {1, 3}) == 1 and len(b & {2, 4}) == 1)
+
+
+def triplet_allowed(b):
+    return not {3, 4} <= b
+
+
+def multi_expected(rate, allowed, w_ps=MULTI_W):
+    x = rate * w_ps / PS
+    combos = {"g2": (1, 2), "g2_13": (1, 3), "g2_24": (2, 4), "g2_34": (3, 4), "g3": (1, 2, 3), "g3_134": (1, 3, 4),
+              "g4": (1, 2, 3, 4)}
+    out = {k: float(f"{cluster_g(c, x, allowed, w_ps, 40.0):.5g}") for k, c in combos.items()}
+    out.update({k + "_ideal": float(f"{cluster_g(c, x, allowed):.6g}") for k, c in combos.items() if k in ("g2", "g3", "g4")})
+    out.update(w_ps=w_ps, x=x, jitter_ps=40.0)
+    return out
+
+
 def thermal_cw_expected(w_ps, tau_c_ps=400_000.0, n=400_000, seed=7):
     """Erwartete Kachelwerte bei Fensterbreite w: Mittel der Permanente der Korrelationsmatrix
     γ_ij = exp(−|τi−τj|/τc) (Gauß-Feld, Wick) über τ_i gleichverteilt in ±w/2 um die Start-Marke (τ=0)."""
@@ -238,6 +329,16 @@ SCENARIOS = {
     "hom_scan": dict(fn=hom_scan, dur=20, file="Demo_Synthetisch_T2_HOM_Dip_Scan_20s.ptu", nch=2, sync=0,
                      expected={"V0": HOM_V0, "dip_min": 1 - HOM_V0, "w_ps": 2000, "delay_ps": 8000},
                      comment="Synthetisch: Hong-Ou-Mandel, Verzoegerung -1..+1 ps linear ueber die Messzeit, V=0.9*exp(-(d/0.3ps)^2); Koinzidenzen K1-K2 (+8 ns) zeigen Dip auf 10 %"),
+    "pairs_cw": dict(fn=photon_pairs, dur=3, file="Demo_Synthetisch_T2_Photonenpaare_SPDC_cw_3s.ptu", nch=4, sync=0,
+                     expected={**multi_expected(PAIR_RATE, pair_allowed),
+                               "note": "R=1 MHz Paare, w=2 ns → x=0,002: g2(K1,K2)=501, g2(K1,K3)=1, g3=1+2/x=1001, "
+                                       "g4=1+4/x+2/x²=502001 (ideal); mit 40 ps Jitter-Randverlust g3=990, g4=4,9e5"},
+                     comment="Synthetisch: Photonenpaare SPDC cw 1 MHz, eta=0,8 je Arm; Signal K1/K3, Idler K2/K4; bei w=2 ns g2(K1,K2)=501, g2(K1,K3)=1, g3(K1K2K3)=990, g4=4,9e5"),
+    "triplets_cw": dict(fn=photon_triplets, dur=5, file="Demo_Synthetisch_T2_Photonentripel_cw_5s.ptu", nch=4, sync=0,
+                        expected={**multi_expected(TRIP_RATE, triplet_allowed),
+                                  "note": "R=600 kHz Tripel, w=2 ns → x=0,0012: g2=834, g2(K3,K4)=1, g3(K1K2K3)=1+3/x+1/x²=6,97e5, "
+                                          "g3(K1K3K4)=1+2/x=1668, g4=1+5/x+4/x²=2,78e6 (ideal; mit Jitter-Randverlust etwas kleiner)"},
+                        comment="Synthetisch: Photonentripel cw 600 kHz, eta=0,5; a K1, b K2, c K3/K4; bei w=2 ns g2(K1,K2)=834, g2(K3,K4)=1, g3(K1K2K3)=6,97e5, g4=2,78e6"),
 }
 
 

@@ -1,5 +1,26 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.7 – 15.10.2026
+
+- g⁴-Ansicht: neben der großen Kachel g⁴(0,0,0) steht jetzt die vollständige Messwertzeile wie in g³.
+  - Inhalt: „Quadrupel … · Messzeit · Bin …“, gleiche Angaben und dasselbe Format wie „Tripel … · … s · Bin …“.
+  - Der τ₃-Regler bleibt an Stelle der Messwertzeile; alle y-Positionen bleiben gleich.
+  - Die Zeile darf zweizeilig werden (360 px). Gemeinsame Funktion `gnReadout`.
+- Zwei neue synthetische T2-Demodateien (Poisson-Cluster-Prozess, cw, 4 Detektoren, Standardfenster 2 ns):
+  - `Demo_Synthetisch_T2_Photonenpaare_SPDC_cw_3s.ptu` (19,6 MB, Daten-Zip 7): sehr gute Zwei-Photonen-Quelle.
+    1 MHz Paare, η = 0,8 je Arm, Signal → K1/K3, Idler → K2/K4.
+    Ideal: g²(K1,K2) = 501, g²(K1,K3) = 1, g³ = 1001, g⁴ = 502 001.
+  - `Demo_Synthetisch_T2_Photonentripel_cw_5s.ptu` (18,6 MB, Daten-Zip 8): gute Drei-Photonen-Quelle.
+    600 kHz Tripel, η = 0,5, K1/K2/(K3|K4).
+    Ideal: g² = 834, g²(K3,K4) = 1, g³(K1,K2,K3) = 6,97·10⁵, g³(K1,K3,K4) = 1668, g⁴ = 2,78·10⁶.
+  - Sollwerte analytisch in `tools/generate_gx.py` (`cluster_g`, `multi_expected`), einschließlich des
+    Jitter-Randverlusts. Prüfung in `tools/validate_gx.py`, `tests/test_gn_validation.py` und `tools/gx_live_bench.py`.
+- Behoben: Das Binär-Frame kodierte g nur bis 10⁴, größere Werte wurden in den g³/g⁴-Karten abgeschnitten.
+  Die Karte war dann einfarbig, die Farbskala hatte nur eine Beschriftung.
+  Jetzt 10⁻⁴ bis 10⁸ (`log_span` 12, relative Auflösung < 0,05 %). Die App liest den Bereich aus dem Frame-Kopf.
+- Kacheln: g ≥ 10⁶ wird als „2.78e6“ angezeigt, damit die Werte in die Kacheln passen.
+- Service-Worker-Cache `exse-harp-gx-mobil-0.2.7-r1`. Die Daten-Zips 1–6 von 0.2.1 gelten weiter, neu sind daten-7 und daten-8.
+
 ## 0.2.6 – 15.10.2026
 
 - Steuerung: Beschriftungen „Referenzkanal (g²)“, „Binbreite g²“ und „Bereich g³/g⁴ (±)“ bleiben einzeilig (360/390 px).

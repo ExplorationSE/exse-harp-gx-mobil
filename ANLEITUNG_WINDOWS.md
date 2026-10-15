@@ -28,7 +28,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
   erreichbar, ausschließlich über den Tunnel.
 * Wer die Adresse kennt, sieht zunächst nur eine **Anmeldeseite**. Ohne den **Zugangscode** gibt es weder Daten
   noch Steuerung.
-* Datenquelle sind sieben mitgelieferte synthetische T2-Messungen `data\Demo_Synthetisch_T2_*.ptu` mit bekannten
+* Datenquelle sind neun mitgelieferte synthetische T2-Messungen `data\Demo_Synthetisch_T2_*.ptu` mit bekannten
   g⁽²⁾/g⁽³⁾/g⁽⁴⁾ (Standard: `Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu`, 4 Kanäle, läuft in Schleife; Übersicht im README). Es wird **kein Messgerät** und **kein snAPI** benötigt.
 
 ## 1. Voraussetzungen
@@ -60,7 +60,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
 2. Rechtsklick → **„Alle extrahieren…“** → Ziel z. B. `C:\ExSE` (kurzer Pfad ohne Sonderzeichen empfohlen).
 3. Danach gibt es den Ordner `C:\ExSE\exse-harp-gx-mobil` mit u. a. `install_windows.bat`, `start_online.bat`,
    `stop_online.bat`, `start_server.bat`, `LIESMICH.txt` und `README.md`.
-4. Die sieben Demodateien `Demo_Synthetisch_T2_*.ptu` aus den Daten-Zips direkt in
+4. Die neun Demodateien `Demo_Synthetisch_T2_*.ptu` aus den Daten-Zips (daten-1 bis daten-8) direkt in
    `C:\ExSE\exse-harp-gx-mobil\data\` legen (ohne Unterordner).
 
 > Tipp: Falls Windows beim Öffnen der ZIP-Datei warnt, können Sie vor dem Entpacken Rechtsklick auf die ZIP →
@@ -131,7 +131,10 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
     Peaks alle 25 ns, der **Mittelpeak bei 0 fehlt fast** (Antibunching); `Demo_Synthetisch_T2_Heralded_K0_g2h_8s.ptu` –
     K0 (violett) = Herald-Detektor am Sync-Eingang, K1/K2 = HBT, Peaks bei +12 ns (K1) und +15 ns (K2);
     `Demo_Synthetisch_T2_HOM_Dip_Scan_20s.ptu` – in der Ansicht **Zeit** sieht man den HOM-Dip nicht direkt in den
-    Einzelraten (nur in den Koinzidenzen, Anzeige folgt in 0.2).
+    Einzelraten (nur in den Koinzidenzen, Anzeige folgt in 0.2);
+    `Demo_Synthetisch_T2_Photonenpaare_SPDC_cw_3s.ptu` – Photonenpaare, in **g²** ein scharfer Peak g²(0) ≈ 500
+    zwischen K1/K2, K1/K4, K3/K2, K3/K4, flach (≈ 1) zwischen K1/K3 und K2/K4;
+    `Demo_Synthetisch_T2_Photonentripel_cw_5s.ptu` – Photonentripel, in **g³** ein starker Peak g³(0,0) ≈ 7·10⁵.
   * **Referenzkanal (g²)**: Bezugskanal der Korrelation (τ = t(Kn) − t(Kref)) und bei T2 Start des Histogramms; er hat keine eigene Kurve.
 * Unter **Datenmenge** sehen Sie Größe pro Bild und kB/s (typisch wenige kB pro Bild).
 * Zweites Handy/Browser parallel: sieht dieselben Daten, kann aber erst steuern, wenn das erste die Steuerung abgibt (oder 5 Minuten lang nichts geändert hat).

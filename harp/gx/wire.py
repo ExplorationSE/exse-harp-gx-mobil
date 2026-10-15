@@ -2,8 +2,9 @@
 
 Aufbau: b"GXF1" | uint32 (LE) Länge des JSON-Kopfs | JSON-Kopf (UTF-8) | zlib(Nutzdaten)
 Nutzdaten: uint16-Felder (Little Endian) laut Kopf ``arrays`` (Name, Form, Byte-Offset).
-Kodierung der Werte: 0 = keine Daten; sonst q = 1 + round((log10(g) + 4) / 8 · 65534) → g = 10^((q−1)/65534·8 − 4),
-also g von 1e-4 bis 1e4 mit relativer Auflösung < 0,03 %.
+Kodierung der Werte: 0 = keine Daten; sonst q = 1 + round((log10(g) + 4) / 12 · 65534) → g = 10^((q−1)/65534·12 − 4),
+also g von 1e-4 bis 1e8 mit relativer Auflösung < 0,05 % (bis 0.2.6: bis 1e4 – die Peaks der Paar-/Tripel-Quellen
+(g³ ≈ 7·10⁵, g⁴ ≈ 3·10⁶) wurden dort abgeschnitten).
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import zlib
 
 import numpy as np
 
-LOG_LO, LOG_SPAN = -4.0, 8.0
+LOG_LO, LOG_SPAN = -4.0, 12.0
 
 
 def quantize(g: np.ndarray) -> np.ndarray:

@@ -25,13 +25,17 @@ import websockets  # noqa: E402
 from harp.config import load_config  # noqa: E402
 from harp.gx.wire import decode  # noqa: E402
 from harp.server import create_app  # noqa: E402
-from tools.generate_gx import thermal_cw_expected  # noqa: E402
+from tools.generate_gx import SCENARIOS, thermal_cw_expected  # noqa: E402
 
 _EXC: dict = {}
 
 
 def expected(name: str, h: dict):
-    """Sollwerte g³(0,0), g⁴(0,0,0) der Kacheln K1K2K3 / K1K2K3K4 (None: nicht anwendbar)."""
+    """Sollwerte g³(0,0), g⁴(0,0,0) [, g²(0)] der Kacheln K1K2K3 / K1K2K3K4 [/ K1K2] (None: nicht anwendbar)."""
+    for sc in SCENARIOS.values():
+        if sc["file"] == name and "g3_134" in sc["expected"]:
+            ex = sc["expected"]
+            return ex["g3"], ex["g4"], ex["g2"]
     if "Thermisch_cw" in name:
         w = int(h["win_ps"])
         if w not in _EXC:
@@ -63,7 +67,7 @@ async def run(port: int, speed: float, secs: float, view: str, only: str | None)
             await cmd("set", {"speed": speed, "loop": True})
             await cmd("start")
             t0 = time.monotonic(); last = None; sizes = []; lats = []
-            ok_t = {3: None, 4: None}; ok_T = {3: None, 4: None}; ok_frames = {3: [0, 0], 4: [0, 0]}
+            ok_t = {2: None, 3: None, 4: None}; ok_T = dict(ok_t); ok_frames = {2: [0, 0], 3: [0, 0], 4: [0, 0]}
             while time.monotonic() - t0 < secs:
                 m = await ws.recv()
                 if isinstance(m, bytes):
@@ -74,7 +78,8 @@ async def run(port: int, speed: float, secs: float, view: str, only: str | None)
                     ex = expected(name, h)
                     if ex:
                         tl = {tuple(t["ch"]): t for t in h["tiles"]}
-                        for o, key, e in ((3, (1, 2, 3), ex[0]), (4, (1, 2, 3, 4), ex[1])):
+                        chk = [(3, (1, 2, 3), ex[0]), (4, (1, 2, 3, 4), ex[1])] + ([(2, (1, 2), ex[2])] if len(ex) > 2 else [])
+                        for o, key, e in chk:
                             t = tl.get(key)
                             ok = bool(t and not t.get("low") and t["g"] is not None and t["n"] >= 10
                                       and abs(t["g"] / e - 1) <= 0.10)

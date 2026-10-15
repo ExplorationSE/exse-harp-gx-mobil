@@ -657,9 +657,13 @@ function drawGn() {
       drawCut(xs, ys, "τ₁ = τ₂ = τ₃ / ns", "4diag");
     }
   }
-  if ($("readout").dataset.auto !== "0") {
-    $("readout").innerHTML = `${o === 3 ? "Tripel" : "Quadrupel"} ${fmtCompact(o === 3 ? h.n3 : h.n4)} · ${h.T_s.toFixed(1)} s · Bin ${fmtWidth(2 * R / nb)}`;
-  }
+  if ($("readout").dataset.auto !== "0") $("readout").innerHTML = gnReadout(h, o);
+}
+// Messwertzeile „Tripel … · T · Bin …“ bzw. „Quadrupel … · T · Bin …“ (g³-Zeile; in g⁴ zusätzlich neben der großen Kachel)
+function gnReadout(h, o) {
+  const R = o === 3 ? h.range_ps : h.range4_ps, d = o === 3 ? G.map3 : G.cube4;
+  const bin = d && d.nb ? ` · Bin ${fmtWidth(2 * R / d.nb)}` : "";
+  return `${o === 3 ? "Tripel" : "Quadrupel"} ${fmtCompact(o === 3 ? h.n3 : h.n4)} · ${h.T_s.toFixed(1)} s${bin}`;
 }
 function drawGnTiles() {
   const h = G.head, o = gnOrder() || 3, big = $("gnBig");
@@ -668,7 +672,7 @@ function drawGnTiles() {
   if (!h) { big.querySelector(".v").textContent = "–"; big.querySelector(".e").textContent = ""; $("gnList").innerHTML = ""; $("gnNotes").innerHTML = ""; return; }
   const cmb = (o === 2 ? gnCombo2() : o === 3 ? h.combo3 : h.combo4).slice().sort((a, b) => a - b).join(",");
   const lab = (t) => (t.kind === "g2h" ? `<span class="gx">g<sup>2</sup><sub>h</sub></span> K${t.ch[0]}|K${t.ch[1]}K${t.ch[2]}` : `K${t.ch.join("K")}`);
-  const fmtG = (g) => (g == null ? "–" : g >= 100 ? g.toFixed(0) : g >= 10 ? g.toFixed(1) : g.toFixed(g < 0.1 ? 3 : 2));
+  const fmtG = (g) => (g == null ? "–" : g >= 1e6 ? g.toExponential(2).replace("e+", "e") : g >= 100 ? g.toFixed(0) : g >= 10 ? g.toFixed(1) : g.toFixed(g < 0.1 ? 3 : 2));
   const isLow = (t) => t.low || t.g == null;
   const mine = h.tiles.filter((t) => t.ch.length === o && t.kind !== "g2h");
   const cur = mine.find((t) => t.ch.join(",") === cmb);
@@ -678,8 +682,9 @@ function drawGnTiles() {
   big.querySelector(".e").textContent = !cur ? "" : low ? `n ${fmtCompact(cur.n)} von ≥ 10 · ${h.T_s.toFixed(1)} s` : `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}`;
   big.title = h.period_ps > 0 ? "Seitenpeak-normiert (gepulst)" : "auf Zufallskoinzidenzen normiert (Dauerstrich)";
   const her = o <= 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];
-  // Ausnahme g⁴: der Messwert-Text unter der Karte weicht dem τ₃-Regler → Quadrupel-Zahl n im freien Platz neben der Kachel
-  const cnt = o === 4 ? `<div class="cnt" title="Quadrupel im Bereich (gesamt)">Quadrupel n <b>${fmtCompact(h.n4)}</b></div>` : "";
+  // Ausnahme g⁴: die Messwertzeile unter der Karte weicht dem τ₃-Regler → dieselbe Zeile wie in g³ im freien Platz neben der Kachel
+  const cnt = o === 4 ? `<div class="cnt" title="Quadrupel im Bereich (gesamt) · Messzeit · Binbreite">${gnReadout(h, 4)}</div>` : "";
+  $("gnList").classList.toggle("wide", o === 4 && her.length + mine.length <= 2);   // wenige g⁴-Kacheln: volle Breite, große Zahlen passen
   $("gnList").innerHTML = [...her, ...mine].map((t) =>
     `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}${t.kind === "g2h" ? " her" : ""}" title="n = ${t.n}">${lab(t)} <b>${isLow(t) ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("") + cnt;
   const norm = h.period_ps > 0 ? "Seitenpeak-normiert" : "auf Zufallskoinzidenzen normiert";

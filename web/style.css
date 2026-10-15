@@ -175,7 +175,7 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
    Textknoten und <span class="gx"> wurden zu einzelnen Flex-Elementen untereinander → eigene Text-Hülle .lt */
 label .lt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:15px;min-height:15px}
 .grid select,.grid input{min-width:0;max-width:100%}
-.gnlist div.cnt{grid-column:1/-1;border-color:transparent;background:none;padding-left:2px;color:var(--mut)}
-.gnlist div.cnt b{color:var(--fg)}
+.gnlist div.cnt{grid-column:1/-1;grid-row:span 2;height:auto;border-color:transparent;background:none;padding:3px 2px;color:var(--mut);white-space:normal;overflow:visible;line-height:16px}
 .btnrow .b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @media (max-width:370px){.btnrow .b{font-size:12.5px;padding:6px 2px}}
+.gnlist.wide div{grid-column:1/-1}

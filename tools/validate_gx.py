@@ -32,6 +32,15 @@ def evaluate(name: str, path) -> dict:
         r = {"g2": gn_cw(tm, [1, 2], w, T)[0], "g3": gn_cw(tm, [1, 2, 3], w, T)[0]}
         g4, n4 = gn_cw(tm, [1, 2, 3, 4], w, T); r["g4"] = g4; r["n4"] = n4
         return r
+    if name in ("pairs_cw", "triplets_cw"):
+        tm, T = load(path)
+        combos = {"g2": [1, 2], "g2_13": [1, 3], "g2_24": [2, 4], "g2_34": [3, 4], "g3": [1, 2, 3], "g3_134": [1, 3, 4],
+                  "g4": [1, 2, 3, 4]}
+        r = {}
+        for k, c in combos.items():
+            r[k], n = gn_cw(tm, c, w, T)
+            r["n" + k[1:]] = n
+        return r
     if name in ("thermal_pulsed", "single_pulsed"):
         tm, T = load(path)
         P = ex["period_ps"]

@@ -1,5 +1,5 @@
 // Minimaler Service Worker: statische Dateien offline verfügbar (App-Shell); Live-Daten nie gecacht.
-const CACHE = "exse-harp-gx-mobil-0.2.6-r1";   // Version + Revision; bei jeder Web-Änderung erhöhen
+const CACHE = "exse-harp-gx-mobil-0.2.7-r1";   // Version + Revision; bei jeder Web-Änderung erhöhen
 const ASSETS = ["/", "/static/style.css", "/static/app.js", "/static/vendor/uPlot.iife.min.js",
   "/static/vendor/uPlot.min.css", "/static/icon.svg", "/manifest.webmanifest"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))));
