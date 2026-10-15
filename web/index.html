@@ -21,8 +21,8 @@
 <main>
   <section class="card hist-card">
     <div class="card-head">
-      <button id="viewBtn" class="viewbtn" type="button" title="Ansicht wechseln: Histogramm / g² / g³ / g⁴ / Zeitverlauf" aria-label="Ansicht wechseln">
-        <span data-v="hist" class="on"><em class="lg">Histogramm</em><em class="sh">Histo</em></span><span data-v="corr"><em class="lg"><span class="gx">g<sup>2</sup></span></em><em class="sh"><span class="gx">g<sup>2</sup></span></em></span><span data-v="g3"><em class="lg"><span class="gx">g<sup>3</sup></span></em><em class="sh"><span class="gx">g<sup>3</sup></span></em></span><span data-v="g4"><em class="lg"><span class="gx">g<sup>4</sup></span></em><em class="sh"><span class="gx">g<sup>4</sup></span></em></span><span data-v="trace"><em class="lg">Zeitverlauf</em><em class="sh">Zeit</em></span><i aria-hidden="true">⇄</i></button>
+      <button id="viewBtn" class="viewbtn" type="button" title="Ansicht wechseln: Histogramm / Zeitverlauf / g² / g³ / g⁴" aria-label="Ansicht wechseln">
+        <span data-v="hist" class="on"><em class="lg">Histogramm</em><em class="sh">Histo</em></span><span data-v="trace"><em class="lg">Zeitverlauf</em><em class="sh">Zeit</em></span><span data-v="corr"><em class="lg"><span class="gx">g<sup>2</sup></span></em><em class="sh"><span class="gx">g<sup>2</sup></span></em></span><span data-v="g3"><em class="lg"><span class="gx">g<sup>3</sup></span></em><em class="sh"><span class="gx">g<sup>3</sup></span></em></span><span data-v="g4"><em class="lg"><span class="gx">g<sup>4</sup></span></em><em class="sh"><span class="gx">g<sup>4</sup></span></em></span><i aria-hidden="true">⇄</i></button>
       <div id="chanbox" class="chanbox" role="group" aria-label="Kanäle ein-/ausblenden"></div>
     </div>
     <div class="chartwrap">
@@ -60,25 +60,25 @@
     </div>
     <div id="progress" class="progress" title="Wiedergabe-Fortschritt der Datei"><div></div></div>
     <div class="grid">
-      <label>PTU-Datei<select id="file"></select></label>
-      <label>Frame-Intervall<select id="refresh_ms">
+      <label><span class="lt">PTU-Datei</span><select id="file"></select></label>
+      <label><span class="lt">Frame-Intervall</span><select id="refresh_ms">
         <option value="100">100 ms (10 Hz)</option><option value="150">150 ms (≈7 Hz)</option>
         <option value="200">200 ms (5 Hz)</option><option value="500">500 ms</option>
         <option value="1000">1 s</option><option value="2000">2 s</option></select></label>
-      <label>Wiedergabe-Tempo<select id="speed">
+      <label><span class="lt">Wiedergabe-Tempo</span><select id="speed">
         <option value="0.1">0,1×</option><option value="0.25">0,25×</option><option value="0.5">0,5×</option>
         <option value="1" selected>Echtzeit</option><option value="2">2×</option><option value="5">5×</option>
         <option value="10">10×</option><option value="20">20×</option><option value="50">50×</option><option value="100">100×</option></select></label>
-      <label>Binbreite<select id="binning"></select></label>
-      <label>Histogrammlänge<select id="hist_len_code"></select></label>
-      <label>Modus<select id="mode"><option value="accumulate">Akkumulieren</option><option value="sliding">Gleitendes Fenster</option></select></label>
-      <label>Fenster (Frames)<input id="window_frames" type="number" min="2" max="300" step="1"></label>
-      <label>Anzeige-Punkte<select id="display_points">
+      <label><span class="lt">Binbreite</span><select id="binning"></select></label>
+      <label><span class="lt">Histogrammlänge</span><select id="hist_len_code"></select></label>
+      <label><span class="lt">Modus</span><select id="mode"><option value="accumulate">Akkumulieren</option><option value="sliding">Gleitendes Fenster</option></select></label>
+      <label><span class="lt">Fenster (Frames)</span><input id="window_frames" type="number" min="2" max="300" step="1"></label>
+      <label><span class="lt">Anzeige-Punkte</span><select id="display_points">
         <option>128</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
-      <label>Referenzkanal (<span class="gx">g<sup>2</sup></span>)<select id="ref_channel"></select></label>
-      <label>Binbreite <span class="gx">g<sup>2</sup></span><select id="corr_binning"></select></label>
-      <label>Bereich <span class="gx">g<sup>3</sup></span>/<span class="gx">g<sup>4</sup></span> (±)<select id="gn_range_ps"></select></label>
-      <label>Koinzidenzfenster g(0)<select id="gn_win_ps"></select></label>
+      <label><span class="lt">Referenzkanal (<span class="gx">g<sup>2</sup></span>)</span><select id="ref_channel"></select></label>
+      <label><span class="lt">Binbreite <span class="gx">g<sup>2</sup></span></span><select id="corr_binning"></select></label>
+      <label><span class="lt">Bereich <span class="gx">g<sup>3</sup></span>/<span class="gx">g<sup>4</sup></span> (±)</span><select id="gn_range_ps"></select></label>
+      <label><span class="lt">Koinzidenzfenster g(0)</span><select id="gn_win_ps"></select></label>
       <label class="chk"><input id="loop" type="checkbox"> Datei wiederholen</label>
       <button id="bRecal" class="b" type="button" title="Kabel-Laufzeiten aus den g²-Kurven neu bestimmen">Laufzeiten kalibrieren</button>
     </div>
@@ -92,7 +92,7 @@
   <section class="card info">
     <dl id="infolist"></dl>
     <p class="appver"><span id="appver">ExSE Harp GX Mobil</span> <span class="simbadge" title="Daten aus PTU-Dateien, kein echtes Gerät">Simulation</span></p>
-    <p class="disclaimer">Simulation mit synthetischen PTU-Dateien – diese Version enthält noch keine Schnittstelle zu einem echten Harp.</p>
+    <p class="disclaimer">Simulation mit synthetischen PTU-Dateien – diese Version enthält noch keine Schnittstelle zu einer echten Harp.</p>
   </section>
 </main>
 <div id="connbar" class="connbar" hidden>Verbindung wird wiederhergestellt …</div>

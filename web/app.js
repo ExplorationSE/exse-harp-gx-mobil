@@ -21,7 +21,7 @@ function pow10Label(v) {
 function fmtNum(v) { const a = Math.abs(v); return a >= 1e6 ? (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "M" : a >= 1e3 ? (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + "k" : String(Math.round(v * 100) / 100); }
 function fmtCount(v) { return v >= 1e4 ? v.toExponential(2).replace("e+", "e") : String(v); }
 const $ = (id) => document.getElementById(id);
-const VIEWS = ["hist", "corr", "g3", "g4", "trace"];   // Reihenfolge im Umschalter
+const VIEWS = ["hist", "trace", "corr", "g3", "g4"];   // Reihenfolge im Umschalter
 const token = new URLSearchParams(location.search).get("token") || "";
 const S = { ws: null, status: null, mine: false, hidden: loadHidden(), view: VIEWS.includes(localStorage.getItem("harp.view")) ? localStorage.getItem("harp.view") : "hist",
   lp: {}, hist: null, trace: null, histKey: "",
@@ -678,8 +678,10 @@ function drawGnTiles() {
   big.querySelector(".e").textContent = !cur ? "" : low ? `n ${fmtCompact(cur.n)} von ≥ 10 · ${h.T_s.toFixed(1)} s` : `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}`;
   big.title = h.period_ps > 0 ? "Seitenpeak-normiert (gepulst)" : "auf Zufallskoinzidenzen normiert (Dauerstrich)";
   const her = o <= 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];
+  // Ausnahme g⁴: der Messwert-Text unter der Karte weicht dem τ₃-Regler → Quadrupel-Zahl n im freien Platz neben der Kachel
+  const cnt = o === 4 ? `<div class="cnt" title="Quadrupel im Bereich (gesamt)">Quadrupel n <b>${fmtCompact(h.n4)}</b></div>` : "";
   $("gnList").innerHTML = [...her, ...mine].map((t) =>
-    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}${t.kind === "g2h" ? " her" : ""}" title="n = ${t.n}">${lab(t)} <b>${isLow(t) ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("");
+    `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}${t.kind === "g2h" ? " her" : ""}" title="n = ${t.n}">${lab(t)} <b>${isLow(t) ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("") + cnt;
   const norm = h.period_ps > 0 ? "Seitenpeak-normiert" : "auf Zufallskoinzidenzen normiert";
   const notes = [`Fenster ${fmtWidth(h.win_ps)} · ${norm} · ${h.T_s.toFixed(1)} s`];
   if (o === 4 && $("readout").hidden && $("readout").dataset.auto === "0") notes.unshift($("readout").innerHTML + ".");   // angetippter Messwert

@@ -64,9 +64,44 @@ def test_all_charts_use_common_height():
 def test_generic_harp_naming():
     root = APP.parent.parent
     html = (APP.parent / "index.html").read_text(encoding="utf-8")
-    assert "diese Version enthält noch keine Schnittstelle zu einem echten Harp." in html
+    assert "diese Version enthält noch keine Schnittstelle zu einer echten Harp." in html
     for f in ("web/index.html", "web/app.js", "web/manifest.webmanifest", "ANLEITUNG_WINDOWS.md"):
         t = (root / f).read_text(encoding="utf-8")
         assert "echten HydraHarp" not in t and "Harp-Gerät" not in t, f
     readme = (root / "README.md").read_text(encoding="utf-8")
     assert "sind Marken" in readme and "PicoQuant" in readme
+
+
+def test_harp_feminine():
+    """„die Harp“: keine neutralen Formen (ein/einem/eines/das/des … Harp) in App, Doku und Code."""
+    root = APP.parent.parent
+    bad = re.compile(r"\b(ein|einem|eines|das|des|dessen|echtes|ein echtes|jedes)\s+(\(?simulierten\)?\s+|echten\s+|PicoQuant\s+|\*\*)?Harp\b(?![-\w])")
+    files = ["web/index.html", "web/app.js", "web/manifest.webmanifest", "README.md", "ANLEITUNG_WINDOWS.md",
+             "LIESMICH.txt", "config.toml", "harp/__init__.py", "harp/sources/hh500_live.py"]
+    for f in files:
+        p = root / f
+        if p.exists():
+            t = p.read_text(encoding="utf-8")
+            assert not bad.search(t), (f, bad.search(t).group(0))
+            assert "echtes Harp" not in t, f
+    for f in ("README.md", "ANLEITUNG_WINDOWS.md", "web/index.html"):
+        assert "einem echten Harp" not in (root / f).read_text(encoding="utf-8"), f
+
+
+def test_control_labels_single_line_markup():
+    """Jedes Label der Steuerung hat eine eigene Text-Hülle .lt (sonst stapelt der Flex-Container Text und g-Symbol)."""
+    html = (APP.parent / "index.html").read_text(encoding="utf-8")
+    grid = html[html.index('<div class="grid">'):html.index('</section>', html.index('<div class="grid">'))]
+    labels = re.findall(r"<label>(.*?)<(?:select|input)", grid, re.S)
+    assert len(labels) >= 12
+    for lab in labels:
+        assert lab.startswith('<span class="lt">') and lab.endswith("</span>"), lab
+    css = (APP.parent / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"label \.lt\{[^}]*white-space:nowrap", css)
+
+
+def test_view_order():
+    html = (APP.parent / "index.html").read_text(encoding="utf-8")
+    btn = html[html.index('id="viewBtn"'):html.index("</button>", html.index('id="viewBtn"'))]
+    assert re.findall(r'data-v="(\w+)"', btn) == ["hist", "trace", "corr", "g3", "g4"]
+    assert 'const VIEWS = ["hist", "trace", "corr", "g3", "g4"];' in APP.read_text(encoding="utf-8")

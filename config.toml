@@ -13,7 +13,7 @@ lock_timeout_s = 300
 [source]
 # pure  = reiner Python-PTU-Replay (läuft überall, Standard für V1)
 # snapi = PTU-Replay über PicoQuant snAPI (unter Linux mit snAPI 1.2.5 getestet, unter Windows ungetestet)
-# hh500 = echtes Harp per snAPI (noch Platzhalter; Name nach dem Beispielgerät HydraHarp 500)
+# hh500 = echte Harp per snAPI (noch Platzhalter; Name nach dem Beispielgerät HydraHarp 500)
 kind = "pure"
 data_dir = "data"
 default_file = "Demo_Synthetisch_T2_Thermisch_cw_g2g3g4_3s.ptu"

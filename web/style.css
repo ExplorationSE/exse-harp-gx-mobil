@@ -27,7 +27,7 @@ h2{font-size:15px;margin:0;font-weight:600}.muted{color:var(--mut);font-size:12p
 .btnrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
 .b{min-height:38px;padding:6px 4px;border-radius:9px;border:1px solid var(--line);background:#0b1222;color:var(--fg);font-size:13.5px;line-height:1.1}
 .b.primary{background:#0e7490;border-color:#0e7490}.b:disabled,select:disabled,input:disabled{opacity:.45}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
 label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-size:14px}
 select,input[type=number]{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0b1222;color:var(--fg);font-size:14px}
@@ -171,3 +171,11 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
 .gnslider output{min-width:64px;font-size:12px}
 .gnbar > .gnrow:first-child{min-height:35px}
 .gnlist{grid-auto-rows:24px}.gnlist div{box-sizing:border-box;height:24px;line-height:16px}
+/* Beschriftung der Bedienelemente: eine Zeile. Ursache des Umbruchs: label ist ein Flex-Container (Spalte),
+   Textknoten und <span class="gx"> wurden zu einzelnen Flex-Elementen untereinander → eigene Text-Hülle .lt */
+label .lt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:15px;min-height:15px}
+.grid select,.grid input{min-width:0;max-width:100%}
+.gnlist div.cnt{grid-column:1/-1;border-color:transparent;background:none;padding-left:2px;color:var(--mut)}
+.gnlist div.cnt b{color:var(--fg)}
+.btnrow .b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media (max-width:370px){.btnrow .b{font-size:12.5px;padding:6px 2px}}

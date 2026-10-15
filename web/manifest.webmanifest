@@ -1,7 +1,7 @@
 {
   "name": "ExSE Harp GX Mobil",
   "short_name": "Harp GX Mobil",
-  "description": "Live-Histogramme und g²/g³/g⁴ eines simulierten Harp aus PTU-Dateien – noch ohne Anbindung an ein echtes Harp",
+  "description": "Live-Histogramme und g²/g³/g⁴ einer simulierten Harp aus PTU-Dateien – noch ohne Anbindung an eine echte Harp",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

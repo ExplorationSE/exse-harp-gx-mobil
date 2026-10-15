@@ -1,5 +1,24 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.6 – 15.10.2026
+
+- Steuerung: Beschriftungen „Referenzkanal (g²)“, „Binbreite g²“ und „Bereich g³/g⁴ (±)“ bleiben einzeilig (360/390 px).
+  - Ursache: `label` ist ein Flex-Container mit `flex-direction:column`. Seit 0.2.2 stehen die g-Symbole als
+    `<span class="gx">` im Label; damit wurden Text, Symbol und Klammer/Schrägstrich je ein eigenes
+    Flex-Element und untereinander gestapelt (bis zu fünf Zeilen bei „Bereich g³/g⁴ (±)“).
+    Die Breite der Auswahlfelder war nicht die Ursache.
+  - Lösung: Beschriftungen haben eine eigene Hülle `<span class="lt">` (einzeilig, `nowrap`, sonst „…“).
+    Die Rasterspalten sind `minmax(0,1fr)`, damit lange Optionstexte das Raster nicht verbreitern.
+- Startleiste: „⏮ Von vorn“ brach bei 360 px in zwei Zeilen um. Die Knöpfe sind jetzt einzeilig, unter 370 px mit 12,5 px Schrift.
+- Hinweistext grammatisch korrigiert („die Harp“): „… keine Schnittstelle zu einer echten Harp.“ in App,
+  README, Anleitung und PDF, LIESMICH und Tests. Auch „eine echte Harp“, „einer simulierten Harp“, „der Harp“
+  in Manifest, README, Anleitung, `config.toml`, Paketbeschreibung und `hh500`-Platzhalter.
+- g⁴-Ansicht (Ausnahme): Die Quadrupel-Zahl „Quadrupel n …“ steht im freien Platz neben der großen Kachel
+  g⁴(0,0,0). Die Messwertzeile wird dort ja vom τ₃-Regler ersetzt.
+- Ansichtsumschalter wieder in der Reihenfolge Histo | Zeit | g² | g³ | g⁴. Weiterschalten folgt dieser Reihenfolge.
+- README: Installationspfad `C:\ExSE\exse-harp-gx-mobil` statt des alten `C:\HarpGXMobil\v1`.
+- Service-Worker-Cache `exse-harp-gx-mobil-0.2.6-r1`. Die Daten-Zips von 0.2.1 gelten weiter.
+
 ## 0.2.5 – 15.10.2026
 
 - g⁴-Karte wieder genau so groß wie die g³-Karte: 276 px bei 360 px Breite, 306 px bei 390 px.

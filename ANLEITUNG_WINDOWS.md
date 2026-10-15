@@ -174,7 +174,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
   vertrauliche Daten später ein VPN (z. B. WireGuard/Tailscale) oder einen benannten Cloudflare-Tunnel mit
   Zugangskontrolle verwenden.
 * **Keine Portfreigabe im Router** einrichten – sie ist nicht nötig.
-* Diese Version steuert nur eine **Simulation**. Bei Anschluss eines echten Harp (spätere Version) kommen zusätzliche
+* Diese Version steuert nur eine **Simulation**. Bei Anschluss einer echten Harp (spätere Version) kommen zusätzliche
   Sicherheitsverriegelungen hinzu (z. B. kein Fernschalten eines Laser-Triggers).
 
 ## 11. Für Fortgeschrittene
