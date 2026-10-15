@@ -165,3 +165,4 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
 .gnrow #gnCombo{flex:0 0 132px;width:132px}
 .gnslider{padding:0 8px 2px}
 .gnbar > .gnrow:first-child{min-height:35px}
+.gnlist{grid-auto-rows:24px}.gnlist div{box-sizing:border-box;height:24px;line-height:16px}

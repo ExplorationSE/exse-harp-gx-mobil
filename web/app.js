@@ -280,6 +280,15 @@ function histHeight() {
   if (W >= 1000) return Math.max(320, Math.min(720, H - (top ? top.offsetHeight : 50) - used - 40));
   return Math.round(Math.max(260, Math.min(H * 0.56, W * 1.15)));   // Handy hoch
 }
+// Einheitliche Diagrammhöhe für alle Ansichten (Histo, g², g³, g⁴, Zeit): Höhe der quadratischen g³/g⁴-Karte
+// (Seite = Breite − 2·Rand, + Achsen oben/unten), höchstens histHeight(). Damit beginnt die Leiste darunter
+// in allen Ansichten auf derselben Höhe; auf breiten/quer liegenden Bildschirmen gilt weiter histHeight().
+const MAP_TOP = 8, MAP_BOT = 40;
+function mapMargin(W) { return W < 500 ? 42 : 50; }
+function chartHeight() {
+  const W = plotWidth(document.querySelector(".chartwrap"));
+  return Math.round(Math.max(160, Math.min(histHeight(), W - 2 * mapMargin(W) + MAP_TOP + MAP_BOT)));
+}
 function histRange(u, mn, mx) {
   const top = Math.max(10, (mx || 1) * 1.6);
   return [Y_FLOOR, 10 ** Math.ceil(Math.log10(top))];
@@ -300,7 +309,7 @@ function makeLog(kind, chans, m) {
   // Korrelogramm zentriert: rechts derselbe Rand wie die y-Achse links, x-Bereich symmetrisch um τ = 0
   const xr = corr ? { range: () => { const W = -(S.lp.corr ? S.lp.corr.m.corr_x0_ps : m.corr_x0_ps) / 1000; return [-W, W]; } }
     : { range: (u, mn, mx) => (mn == null || mn === mx ? [0, 1] : [mn, mx]) };   // Daten über volle Breite
-  p.u = new uPlot({ width: plotWidth(chartBox()), height: histHeight(), series, pxAlign: false,
+  p.u = new uPlot({ width: plotWidth(chartBox()), height: chartHeight(), series, pxAlign: false,
     padding: [8, ysz, 0, 0],   // rechts so breit wie die y-Achse links → Zeichenfläche zentriert
     legend: { show: false },
     cursor: { drag: { x: true, y: false }, points: { size: 7 } },
@@ -356,7 +365,7 @@ function makeTrace(ids) {
   S.trCh = ids.slice();
   ids.forEach((c) => series.push({ label: "K" + c, stroke: chColor(c), width: 1.6, points: { show: false },
     show: !S.hidden.has(c) }));
-  S.trace = new uPlot({ width: plotWidth(chartBox()), height: histHeight(), series, pxAlign: false, padding: [8, 52, 0, 0],   // = y-Achse 38 + Beschriftung 14
+  S.trace = new uPlot({ width: plotWidth(chartBox()), height: chartHeight(), series, pxAlign: false, padding: [8, 52, 0, 0],   // = y-Achse 38 + Beschriftung 14
     legend: { show: false }, cursor: { points: { size: 6 } },
     scales: { x: { time: false, range: (u, mn, mx) => (mn === mx ? [mn - 1, mx + 1] : [mn, mx]) },
               y: { range: (u, mn, mx) => [0, Math.max(1, (mx || 0) * 1.1)] } }, hooks: { setCursor: [traceReadout] },
@@ -534,8 +543,9 @@ function fmtTau(ns) { return Math.abs(ns) >= 1000 ? +(ns / 1000).toPrecision(3) 
 function tauUnit(Rns) { return Rns >= 2000 ? ["µs", 1000] : ["ns", 1]; }
 // Heatmap: vals[x*nb+y], x → τ1 (rechts), y → τ2 (oben); symmetrische Ränder (Farbskala rechts = Achse links)
 function drawHeat(vals, nb, Rps, xl, yl) {
-  const cv = $("gnCanvas"), dpr = window.devicePixelRatio || 1, W = plotWidth($("gnPlot")), Hmax = histHeight();
-  const narrow = W < 500, m = narrow ? 42 : 50, top = 8, bot = 40, side = Math.max(60, Math.min(W - 2 * m, Hmax - top - bot));
+  const sl = $("gnSliderRow"), slH = sl.hidden ? 0 : sl.offsetHeight + (parseFloat(getComputedStyle(sl).marginTop) || 0);   // g⁴-Schnitt: Regler gehört zur Diagrammhöhe
+  const cv = $("gnCanvas"), dpr = window.devicePixelRatio || 1, W = plotWidth($("gnPlot")), Hmax = chartHeight() - slH;
+  const m = mapMargin(W), top = MAP_TOP, bot = MAP_BOT, side = Math.max(60, Math.min(W - 2 * m, Hmax - top - bot));
   const H = side + top + bot;   // quadratische Karte, keine Leerfläche darunter
   cv.style.height = H + "px"; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
   const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
@@ -596,7 +606,7 @@ function drawCut(xs, ys, xlab, key) {
   if (!G.cut || G.cutKey !== key) {
     el.innerHTML = ""; G.cutKey = key;
     const ysz = chartBox().clientWidth < 500 ? 34 : 40;
-    G.cut = new uPlot({ width: plotWidth($("gnPlot")), height: histHeight(), pxAlign: false, padding: [8, ysz, 0, 0],
+    G.cut = new uPlot({ width: plotWidth($("gnPlot")), height: chartHeight(), pxAlign: false, padding: [8, ysz, 0, 0],
       legend: { show: false }, cursor: { points: { size: 7 } },
       series: [{}, { stroke: "#38bdf8", width: 1.8, points: { show: true, size: 3 }, spanGaps: false }],
       scales: { x: { time: false, range: (u, mn, mx) => [Math.min(mn, -mx), Math.max(mx, -mn)] }, y: { distr: 3, log: 10,
@@ -692,7 +702,7 @@ let resizeT = 0;
 function onResize(delay) {
   clearTimeout(resizeT);
   resizeT = setTimeout(() => {
-    const w = plotWidth(chartBox()), h = histHeight();
+    const w = plotWidth(chartBox()), h = chartHeight();
     for (const p of Object.values(S.lp)) if (p.u) p.u.setSize({ width: w, height: h });
     if (S.trace) S.trace.setSize({ width: w, height: h });
     if (G.cut) G.cut.setSize({ width: w, height: h });

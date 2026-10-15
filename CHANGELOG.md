@@ -1,5 +1,16 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.4 – 15.10.2026
+
+- Alle Ansichten haben jetzt dieselbe Diagrammhöhe: Histo, g², g³, g⁴ und Zeit.
+  - Maßgeblich ist die Höhe der quadratischen g³/g⁴-Karte: Breite − 2·Rand plus Achsen, höchstens die bisherige Höhe.
+  - Beim g⁴-Schnitt zählt der τ₃-Regler zur Diagrammhöhe; die Karte wird dafür etwas kleiner.
+  - Damit beginnen Messwertzeile, Leiste und Steuerung in allen Ansichten auf derselben Höhe.
+  - Gemessen bei 360 px: Leiste bei y = 461, Diagramm 324 px. Bei 390 px: y = 491, Diagramm 354 px.
+  - Auf breiten oder quer liegenden Bildschirmen begrenzt weiter die Fensterhöhe; dort ändert sich nichts.
+- Kachelliste mit fester Zeilenhöhe von 24 px, damit die Leiste in g², g³ und g⁴ gleich hoch ist (208 px).
+- Neues Prüfwerkzeug `tools/layout_check_gx.py` und neuer Test für die gemeinsame Diagrammhöhe. Service-Worker-Cache r8.
+
 ## 0.2.3 – 15.10.2026
 
 - g²-Ansicht: große Kachel g²(0) wie g³(0,0)/g⁴(0,0,0), für das gewählte Kanalpaar (Auswahl wird gespeichert).

@@ -46,3 +46,13 @@ def test_gn_bar_structure_same_for_g2_g3_g4():
     assert "gnSliderRow" in plot
     js = APP.read_text(encoding="utf-8")
     assert "corr: 2, g3: 3, g4: 4" in js and 'localStorage.setItem("harp.gn2"' in js
+
+
+def test_all_charts_use_common_height():
+    """Histo, g², g³/g⁴-Schnitte und Zeitverlauf nutzen dieselbe Höhe wie die quadratische g³/g⁴-Karte."""
+    js = APP.read_text(encoding="utf-8")
+    assert "function chartHeight()" in js
+    assert not re.search(r"height:\s*histHeight\(\)", js)          # keine uPlot-Höhe mehr direkt aus histHeight
+    assert js.count("height: chartHeight()") >= 3                  # Histo/g², Zeit, Schnitte
+    heat = js[js.index("function drawHeat"):js.index("function gnPick")]
+    assert "chartHeight() - slH" in heat                            # g⁴-Regler zählt zur Diagrammhöhe
