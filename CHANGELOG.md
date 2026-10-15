@@ -1,5 +1,16 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 0.2.2 – 15.10.2026
+
+- Farbskala neben den g³/g⁴-Karten: logarithmische 1-2-5-Teilung (0,1 · 0,2 · 0,5 · 1 · 2 · 5 · 10 · 20 …) über
+  den sichtbaren Bereich, immer mehrere Beschriftungen. 1 ist als Bezug hervorgehoben (hell, fett, längerer Strich).
+  Bei engem Bereich wird feiner unterteilt, bei sehr großem ausgedünnt.
+- g mit Exponent überall einheitlich gesetzt (Ansichtsumschalter, Steuerung, Kacheln, Hinweise, Info):
+  g etwas größer, Exponent ≈ 70 % der g-Größe und angehoben, g²ₕ entsprechend.
+- Informative Hinweise sind jetzt grau statt gelb: automatisches Fenster/Bereich, Kalibrierhinweise,
+  „Sammelt Daten …“. Gelb bleibt echten Problemen vorbehalten (z. B. Verbindungsverlust, Zuschauer-Modus).
+- Test `tests/test_web_ticks.py` (Teilung der Farbskala, mit Node). Service-Worker-Cache r6.
+
 ## 0.2.1 – 14.10.2026
 
 - Thermisch cw live (g³/g⁴ = 0, keine Kalibrierung): kein Rechenfehler, sondern Statistik bzw. Einstellung.

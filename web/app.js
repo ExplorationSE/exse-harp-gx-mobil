@@ -339,7 +339,8 @@ function updateHint() {
   else if (m && S.view === "corr" && !m.corr) txt = "Korrelation mit dieser Datenquelle nicht verfügbar.";
   else if (m && S.view === "corr" && m.corr && !m.corr_channels.length) txt = "Keine Kanäle außer dem Referenzkanal.";
   else if (S.view === "g3" || S.view === "g4") txt = gnHint();
-  h.textContent = txt; h.hidden = !txt;
+  h.innerHTML = gsym(txt); h.hidden = !txt;
+  h.classList.toggle("info", S.view === "g3" || S.view === "g4");   // Hinweise zum Sammeln: grau, keine Warnung
 }
 function makeTrace(ids) {
   const el = $("tracePlot"); el.innerHTML = "";
@@ -400,7 +401,7 @@ function renderInfo() {
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
   if (st.version) $("appver").textContent = "ExSE Harp GX Mobil " + st.version;
-  $("infolist").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  $("infolist").innerHTML = rows.map(([k, v]) => `<dt>${gsym(k)}</dt><dd>${gsym(v)}</dd>`).join("");
   if (m) $("progress").firstElementChild.style.width = (m.progress * 100).toFixed(1) + "%";
 }
 let infoTick = 0;
@@ -453,6 +454,8 @@ function combos(ids, k) {
     for (let i = st; i < ids.length; i++) { acc.push(ids[i]); rec(i + 1, acc); acc.pop(); } };
   rec(0, []); return out;
 }
+// g mit Exponent typografisch (Exponent ≈ 70 % der g-Größe, angehoben), überall gleich
+const gsym = (s) => String(s).replace(/g([²³⁴])/g, (m, c) => `<span class="gx">g<sup>${({ "²": 2, "³": 3, "⁴": 4 })[c]}</sup></span>`);
 const sup = (o) => (o === 3 ? "³" : o === 4 ? "⁴" : "²");
 function buildGnBar() {
   const o = S.view === "g4" ? 4 : 3, ids = G.ids || [1, 2, 3, 4], cur = (o === 3 ? G.combo3 : G.combo4) || [];
@@ -487,6 +490,21 @@ function viridis(t) {
   const x = Math.min(1, Math.max(0, t)) * (VIRIDIS.length - 1), i = Math.min(VIRIDIS.length - 2, Math.floor(x)), f = x - i;
   return VIRIDIS[i].map((c, k) => Math.round(c + (VIRIDIS[i + 1][k] - c) * f));
 }
+// Farbskala: logarithmische 1-2-5-Teilung über den sichtbaren Bereich [10^lo, 10^hi], immer mehrere Marken, 1 als Bezug
+function colorTicks(lo, hi, maxN) {
+  const pick = (ms) => { const t = []; for (let e = Math.floor(lo) - 1; e <= Math.ceil(hi); e++) for (const m of ms) {
+    const v = m * 10 ** e, l = Math.log10(v); if (l >= lo - 1e-9 && l <= hi + 1e-9) t.push(+v.toPrecision(3)); } return t; };
+  let t = pick([1, 2, 5]);
+  if (t.length > maxN) { t = pick([1]); if (t.length < 3) t = pick([1, 3]); }
+  if (t.length < 3) t = pick([1, 1.5, 2, 3, 5, 7]);
+  if (t.length < 3) t = pick([1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9]);
+  if (t.length < 2) { t = [+(10 ** lo).toPrecision(2), +(10 ** hi).toPrecision(2)]; if (t[0] === t[1]) t = [t[0]]; }
+  while (t.length > maxN) {           // ausdünnen, 1 behalten
+    const keep = t.filter((v, i) => i % 2 === 0 || v === 1); if (keep.length === t.length) break; t = keep;
+  }
+  return t;
+}
+function fmtTick(v) { return v >= 1e4 ? v.toExponential(0).replace("e+", "e") : String(+v.toPrecision(2)); }
 function niceStep(r) { const p = 10 ** Math.floor(Math.log10(r)), m = r / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
 function fmtTau(ns) { return Math.abs(ns) >= 1000 ? +(ns / 1000).toPrecision(3) + "µ" : String(+ns.toPrecision(3)); }
 function tauUnit(Rns) { return Rns >= 2000 ? ["µs", 1000] : ["ns", 1]; }
@@ -526,7 +544,18 @@ function drawHeat(vals, nb, Rps, xl, yl) {
   const bx = x0 + side + 7, bw = 8;
   for (let i = 0; i < side; i++) { const [r, g, b] = viridis(1 - i / side); c.fillStyle = `rgb(${r},${g},${b})`; c.fillRect(bx, y0 + i, bw, 1.5); }
   c.font = AXIS.font; c.fillStyle = AXIS.stroke; c.textAlign = "left"; c.textBaseline = "middle";
-  for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) c.fillText(pow10Label(10 ** e), bx + bw + 3, y0 + side - (e - lo) / span * side);
+  const ticks = colorTicks(lo, hi, Math.max(3, Math.floor(side / 18)));
+  let lastY = Infinity;
+  for (const v of ticks) {
+    const y = y0 + side - (Math.log10(v) - lo) / span * side, ref = v === 1;
+    if (!ref && Math.abs(lastY - y) < 12) continue;
+    c.fillStyle = ref ? "#e2e8f0" : AXIS.stroke; c.fillRect(bx - 2, y - 0.5, bw + 4, ref ? 1.5 : 1);
+    c.font = ref ? "600 " + AXIS.font : AXIS.font;
+    c.fillText(fmtTick(v), bx + bw + 4, Math.min(y0 + side - 5, Math.max(y0 + 5, y)));
+    lastY = y;
+  }
+  c.font = AXIS.font;
+  G.ticks = ticks;
   G.geom = { x0, y0, side, nb, Rps, vals };
 }
 function gnPick(e) {
@@ -597,11 +626,11 @@ function drawGnTiles() {
   const h = G.head, o = S.view === "g4" ? 4 : 3, big = $("gnBig");
   if (!h) { big.querySelector(".v").textContent = "–"; $("gnList").innerHTML = ""; return; }
   const cmb = (o === 3 ? h.combo3 : h.combo4).slice().sort((a, b) => a - b).join(",");
-  const lab = (t) => (t.kind === "g2h" ? `g²ₕ K${t.ch[0]}|K${t.ch[1]}K${t.ch[2]}` : `K${t.ch.join("K")}`);
+  const lab = (t) => (t.kind === "g2h" ? `<span class="gx">g<sup>2</sup><sub>h</sub></span> K${t.ch[0]}|K${t.ch[1]}K${t.ch[2]}` : `K${t.ch.join("K")}`);
   const fmtG = (g) => (g == null ? "–" : g >= 100 ? g.toFixed(0) : g >= 10 ? g.toFixed(1) : g.toFixed(g < 0.1 ? 3 : 2));
   const mine = h.tiles.filter((t) => t.ch.length === o && t.kind !== "g2h");
   const cur = mine.find((t) => t.ch.join(",") === cmb);
-  big.querySelector(".k").textContent = `g${sup(o)}(0${o === 3 ? ",0" : ",0,0"})`;
+  big.querySelector(".k").innerHTML = `<span class="gx">g<sup>${o}</sup></span>(0${o === 3 ? ",0" : ",0,0"})`;
   const low = cur && (cur.low || cur.g == null);
   big.classList.toggle("low", !!low);
   big.querySelector(".v").textContent = !cur ? "–" : low ? "sammelt Daten …" : fmtG(cur.g);
@@ -611,7 +640,7 @@ function drawGnTiles() {
   $("gnList").innerHTML = [...extra, ...mine].map((t) =>
     `<div class="${t.ch.join(",") === cmb && t.kind !== "g2h" ? "cur" : ""}" title="n = ${t.n}">${lab(t)} <b>${t.low || t.g == null ? `… n ${fmtCompact(t.n)}` : fmtG(t.g)}</b></div>`).join("")
     + `<div class="muted" title="Koinzidenzfenster">w ${fmtWidth(h.win_ps)}${h.period_ps > 0 ? " · Seitenpeaks" : ""}</div>`
-    + (calNote(h) ? `<div class="calnote">${calNote(h)}</div>` : "");
+    + (calNote(h) ? `<div class="calnote">${gsym(calNote(h))}</div>` : "");
 }
 function calNote(h) {
   const n = [], g = h.geo;

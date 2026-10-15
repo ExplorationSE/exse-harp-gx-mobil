@@ -151,5 +151,11 @@ background:#3b2a07;border:1px solid var(--warn);color:#fde68a;font-size:13px;whi
 }
 @media (max-width:370px){.viewbtn span{padding:7px 5px}.chbtn{min-width:31px;width:31px}#chanbox.many .chbtn{min-width:27px;width:27px}}
 
-#gnBig.low .v { font-size: 1.05rem; color: var(--muted, #94a3b8); }
-#gnList .calnote { flex-basis: 100%; grid-column: 1 / -1; white-space: normal; overflow: visible; text-overflow: clip; font-size: .78rem; color: #fbbf24; }
+#gnBig.low .v { font-size: 1.05rem; color: var(--mut); }
+#gnList .calnote { flex-basis: 100%; grid-column: 1 / -1; white-space: normal; overflow: visible; text-overflow: clip; font-size: .78rem; color: var(--mut); border-style: dashed; }
+.charthint.info{border-color:var(--line);color:var(--mut)}
+.gnbig .k{font-size:13px}
+/* g mit Exponent: g etwas größer, Exponent ≈ 70 % der g-Größe und angehoben */
+.gx{font-size:1.18em;line-height:0;white-space:nowrap}
+.gx sup{font-size:.7em;vertical-align:.55em;line-height:0;margin-left:.04em}
+.gx sub{font-size:.7em;vertical-align:-.25em;line-height:0}
