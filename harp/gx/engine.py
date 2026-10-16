@@ -395,8 +395,9 @@ class GnEngine:
                 "cal_missing": list(getattr(self, "cal_missing", [])), "geo": self.geo,
                 "win_ps": c.win_ps, "range_set_ps": c.range_ps, "range_ps": self._w(c.nb3)[0], "range4_ps": self._w(c.nb4)[0],
                 "bw3_ps": self._w(c.nb3)[1], "bw4_ps": self._w(c.nb4)[1], "n3": int(self.map3.sum()),
-                "n4": int(self.cube4.sum()), "stats": dict(self.stats), "backend": c.backend or K.BACKEND,
-                "threads": K.n_threads(c.backend), "engine_note": K.FALLBACK_NOTE}
+                "n4": int(self.cube4.sum()), "stats": dict(self.stats), "backend": K.active_backend(c.backend),
+                "threads": K.n_threads(c.backend), "gpu_name": (K.GPU_INFO or {}).get("name"),
+                "engine_note": K.FALLBACK_NOTE or K.gpu_note()}
 
     def _norm(self, h: np.ndarray, combo, nb) -> np.ndarray:
         """cw: g = N / (N_a · Π N_x/T · BW). Gepulst: zusätzlich auf die mittlere Seitenpeak-Höhe skaliert."""

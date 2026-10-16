@@ -1,13 +1,16 @@
 name: Rust-Wheels
 
 # Baut den Rust-Rechenkern harp_gx_core als abi3-Wheel (cp311-abi3 = ein Wheel für Python 3.11–3.13+),
-# prüft Import und Bitgleichheit gegen Numba auf jeder Python-Version und hängt die Wheels bei einem
-# Release-Tag (v*) an das GitHub-Release an. Nutzer brauchen dadurch keinen Compiler.
+# mit GPU-Pfad (wgpu: DirectX 12 / Vulkan / Metal), prüft Import ohne GPU, Bitgleichheit gegen Numba und den
+# GPU-Pfad auf einem Software-Adapter (Windows: WARP, Linux: lavapipe) auf jeder Python-Version und hängt die
+# Wheels bei einem Release-Tag (v*) an das GitHub-Release an. Nutzer brauchen dadurch keinen Compiler.
 
 on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths: ["rust/**", "harp/gx/**", "tests/test_gx_*.py", ".github/workflows/wheels.yml"]
   pull_request:
     paths: ["rust/**", ".github/workflows/wheels.yml"]
 
@@ -58,6 +61,9 @@ jobs:
         with:
           name: wheel-${{ matrix.os }}
           path: wheelhouse
+      - name: Software-Vulkan (lavapipe) für GPU-Tests
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers
       - name: Abhängigkeiten und Wheel installieren
         shell: bash
         run: |
@@ -69,8 +75,16 @@ jobs:
         run: |
           python -c "import harp_gx_core as r; print('harp_gx_core', r.__version__, r.n_threads(), 'Threads')"
           python -c "from harp.gx import kernels as K; i = K.info(); print(i); assert i['backend'] == 'rust', i"
+      - name: Ohne GPU-Gerät startbar (Automatik, nur echte Grafikchips)
+        shell: bash
+        run: |
+          python -c "import harp_gx_core as r; print('GPU gebaut:', r.gpu_compiled()); print(r.gpu_adapters())"
+          python -c "from harp.gx import kernels as K; print(K.warmup(), K.GPU_STATE, K.active_backend())"
+          HARP_GX_ENGINE=gpu python -c "from harp.gx import kernels as K; K.warmup(); print(K.GPU_STATE, '|', K.FALLBACK_NOTE)"
       - name: Gleichheit Rust = Numba = NumPy, Rückfall
         run: python -m pytest -q tests/test_gx_rust.py tests/test_gx_engine.py
+      - name: GPU-Pfad = Rust = gn.py (Software-Adapter; ohne Adapter übersprungen)
+        run: python -m pytest -q -rs tests/test_gx_gpu.py
 
   release:
     name: Wheels an Release anhängen

@@ -230,7 +230,7 @@ class HarpService:
                 "delays": {str(k): v for k, v in r["delays"].items()}, "cal_done": r["cal_done"],
                 "cal_status": r.get("cal_status", "vorgegeben"), "cal_missing": r.get("cal_missing", []), "geo": r.get("geo"),
                 "backend": r["backend"], "threads": r.get("threads") or self.gn.info.get("threads"),
-                "engine_note": r.get("engine_note", ""),
+                "engine_note": r.get("engine_note", ""), "gpu_name": r.get("gpu_name"),
                 "latency_ms": round(r.get("latency_s", 0) * 1000, 1),
                 "proc_mtags": round(st["tags"] / st["proc_s"] / 1e6, 2) if st.get("proc_s") else None,
                 "last_ms": round(st.get("last_ms", 0), 2), "backlog": r.get("backlog", 0),

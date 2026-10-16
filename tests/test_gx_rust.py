@@ -150,8 +150,10 @@ def test_engine_order_and_forcing():
     # erzwungener, aber fehlender Rust-Kern → Rückfall mit Hinweis
     out = _sub({**clean, "HARP_GX_ENGINE": "rust", "HARP_GX_NO_RUST": "1"}, info)
     assert out.split()[0] == ("numba" if K.HAVE_NUMBA else "numpy") and "nicht verfügbar" in out
-    out = _sub({**clean, "HARP_GX_ENGINE": "gpu"}, info)
+    out = _sub({**clean, "HARP_GX_ENGINE": "quanten"}, info)
     assert "unbekannt" in out
+    # gpu: CPU-Kern bleibt der beste vorhandene (Histogramme laufen auf der GPU, falls vorhanden)
+    assert _sub({**clean, "HARP_GX_ENGINE": "gpu"}, info).split()[0] == K.AVAILABLE[0]
     if K.HAVE_RUST:
         assert _sub({**clean, "HARP_GX_THREADS": "2"}, info).split()[2] == "2"
 

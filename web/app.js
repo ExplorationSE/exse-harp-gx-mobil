@@ -421,7 +421,7 @@ function renderInfo() {
   if (gh) {
     const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
     rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_status === "unnoetig" ? " (vernachlässigbar, g² breit)" : gh.cal_status === "kein_merkmal" ? " (kein Merkmal – ohne Offsets)" : gh.cal_status === "teilweise" ? " (unvollständig)" : gh.cal_done ? "" : " (Kalibrierung läuft)")],
-      ["Rechenkern", `${ENGINE_NAME[gh.backend] || gh.backend}${gh.threads ? " · " + gh.threads + " Threads" : ""} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame${gh.engine_note ? " · " + gh.engine_note : ""}`]);
+      ["Rechenkern", `${gh.backend === "gpu" ? "GPU (wgpu" + (gh.gpu_name ? ", " + gh.gpu_name : "") + ")" : (ENGINE_NAME[gh.backend] || gh.backend) + (gh.threads ? " · " + gh.threads + " Threads" : "")} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame${gh.engine_note ? " · " + gh.engine_note : ""}`]);
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
   if (st.version) $("appver").textContent = "ExSE Harp GX Mobil " + st.version;

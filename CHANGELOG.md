@@ -1,5 +1,33 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.2.0-dev – 17.10.2026
+
+GPU-Beschleunigung (Testversion, noch kein Release).
+
+- **GPU-Pfad im Rust-Kern** (`rust/harp_gx_core/src/gpu.rs`, Shader `gx.wgsl`, cargo-Feature `gpu`, Standard an):
+  - wgpu 25 mit DirectX 12, Vulkan und Metal; Gerätewahl diskret > integriert > virtuell, Software-Adapter nur mit
+    `HARP_GX_GPU_ALLOW_CPU=1`.
+  - g²/g³/g⁴-Histogramme mit derselben Rechenvorschrift wie die CPU: Blöcke zu ≤ 256 Start-Marken mit Überlapp ±W,
+    32-bit-Relativzeiten je Block (keine 64-bit-Arithmetik auf der GPU nötig), Bins als atomare u32-Paare mit
+    Übertrag → exakt. Arbeit in Teil-Dispatches begrenzt (Speicher, geschätzte Tupelzahl; gegen Windows-TDR).
+  - Panics und Gerätefehler werden zu Python-Ausnahmen (Release-Profil jetzt `panic = "unwind"`).
+- **Automatische Wahl** (`harp/gx/kernels.py`): GPU-Prüfung in eigenem Prozess samt Selbsttest beim Start des
+  Workers; je Rechenart und Geometrie Messung GPU gegen CPU auf den echten Daten, GPU nur bei ≥ 10 % Vorsprung,
+  Nachprüfung alle 200 Aufrufe; Rückfall auf die CPU bei jedem Fehler. Neue Werte/Variablen:
+  `HARP_GX_ENGINE=gpu`, `HARP_GX_NO_GPU`, `HARP_GX_GPU_BACKEND`, `HARP_GX_GPU_ALLOW_CPU`.
+- Ungültige Histogramm-Geometrie wird jetzt vor jedem Kern geprüft (`ValueError`), statt den Rust-Kern
+  abzuschalten und an Numba weiterzureichen.
+- Info-Zeile „Rechenkern“: „GPU (wgpu, <Grafikchip>) · … Mtags/s“, sonst der CPU-Kern wie bisher.
+- Tests `tests/test_gx_gpu.py` (laufen auf lavapipe/WARP, ohne Adapter übersprungen): GPU = Rust = NumPy auf
+  Zufallsdaten (auch Zeiten > 2³² ps, Lücken, viele Teil-Dispatches), jeder geprüfte Bin = `harp/gn.py`-Tupelzählung
+  auf allen 9 Demodateien, ganze Demodateien GPU = Rust durch die Engine, Automatik ergebnisneutral, Rückfall,
+  Verhalten ohne Gerät und mit `HARP_GX_NO_GPU`.
+- `tools/bench_gpu.py` (Kerne GPU gegen CPU), `tools/bench_engines.py --engines rust,gpu,auto`.
+- CI: Wheels werden auch bei Änderungen an `main` gebaut; Windows-Test auf WARP, Linux auf lavapipe; Import und
+  Start ohne GPU geprüft.
+- Version 1.2.0-dev (Python), Rust-Kern 1.2.0-dev / Wheel 1.2.0.dev0; Service-Worker-Cache
+  `exse-harp-gx-mobil-1.2.0-dev-r1`.
+
 ## 1.1.0 – 16.10.2026
 
 Veröffentlichung des Rust-Rechenkerns (getestet als 1.1.0-dev, unter Windows mit Python 3.11–3.13).

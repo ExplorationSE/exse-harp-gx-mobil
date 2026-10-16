@@ -94,6 +94,25 @@ Die Reihenfolge ist Rust > Numba > NumPy mit automatischem Rückfall; der aktive
   danach `pip install wheelhouse/*.whl`.
 - Vergleich: `python tools/bench_engines.py --threads 1,2,4,8`.
 
+**1.2.0-dev – GPU-Pfad (wgpu):** Der Rust-Kern enthält Compute-Shader (WGSL) für die g²/g³/g⁴-Histogramme,
+lauffähig über DirectX 12 und Vulkan (Windows, auch Intel-iGPU) bzw. Metal.
+- Gleiche Rechenvorschrift wie die CPU: Start-Marken in Blöcken zu ≤ 256 mit Überlapp ±W; Zeiten je Block als
+  32-bit-Relativzeiten (Basis = erste Start-Marke − W, Spannweite < 2³⁰ ps, Fenster 2W ≤ 2³⁰ ps); eine
+  Arbeitsgruppe je Block, eine Start-Marke je Thread, Fensterränder per Bisektion, Bins als atomare u32-Paare mit
+  Übertrag (exakt bis 2⁶⁴). Ergebnisse **bit-identisch** zu Rust-CPU, Numba, NumPy und den Tupelzählungen von
+  `harp/gn.py` (Tests `tests/test_gx_gpu.py`, alle 9 Demodateien).
+- Automatik: Beim Start (`warmup`) wird die GPU in einem eigenen Prüfprozess geöffnet und gegen die CPU getestet
+  (Treiberabsturz → einfach keine GPU). Danach misst die Engine je Rechenart und Geometrie die ersten Aufrufe
+  abwechselnd auf GPU und CPU und nimmt die GPU nur, wenn sie ≥ 10 % schneller ist; Nachprüfung alle 200 Aufrufe.
+  Software-Adapter (WARP, lavapipe) werden im Betrieb nicht benutzt. Kacheln/Fensterzählungen bleiben auf der CPU.
+- Jeder GPU-Fehler (auch Geräteverlust) → Rückfall auf die CPU mit Hinweis in der Info-Zeile.
+- Info-Zeile „Rechenkern“: „GPU (wgpu, <Grafikchip>) · … Mtags/s“ oder der CPU-Kern wie bisher; ist eine GPU
+  vorhanden, aber langsamer, steht am Ende „GPU … vorhanden, CPU schneller“.
+- Umgebungsvariablen: `HARP_GX_ENGINE=gpu` (Histogramme immer auf der GPU), `HARP_GX_NO_GPU=1` (aus),
+  `HARP_GX_GPU_BACKEND=dx12|vulkan`, `HARP_GX_GPU_ALLOW_CPU=1` (Software-Adapter, nur für Tests).
+- Messungen: `python tools/bench_gpu.py` (reine Kerne) und `python tools/bench_engines.py --engines rust,gpu,auto`.
+- Ohne GPU-Pfad bauen: `maturin build --release --no-default-features -m rust/harp_gx_core/Cargo.toml`.
+
 **0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
 im g² (FWHM ≥ 50 ns) gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach
 Statistik gewählt (≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns.
@@ -104,7 +123,7 @@ Die Binär-Frames sind bei gefüllten Karten größer: thermisch cw ≈ 35 kB, L
 
 Einschränkungen: Karten werden nur aufsummiert (kein Abklingen); snAPI-Quelle liefert keine Einzelereignisse
 (kein g³/g⁴); Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); Kalibrierung braucht ein Merkmal im g² (beim kohärenten Laser keine); Kacheln nutzen ein festes,
-bei τ=0 zentriertes Fenster; GPU-Pfad (wgpu) noch nicht vorhanden.
+bei τ=0 zentriertes Fenster; GPU-Pfad bisher nur auf Software-Adaptern geprüft (Messung auf echter Intel-Grafik steht aus).
 
 ## Funktionen
 

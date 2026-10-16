@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "harp-gx-core"
-version = "1.1.0"
+version = "1.2.0.dev0"
 description = "Rust-Rechenkern (g²/g³/g⁴) für ExSE Harp GX Mobil – optional, sonst Numba/NumPy"
 requires-python = ">=3.11"
 license = { text = "MIT" }

@@ -1,6 +1,6 @@
 [package]
 name = "harp_gx_core"
-version = "1.1.0"
+version = "1.2.0-dev"
 edition = "2021"
 description = "Rust-Rechenkern (g²/g³/g⁴-Koinzidenzhistogramme) für ExSE Harp GX Mobil"
 license = "MIT"
@@ -13,9 +13,16 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.25", features = ["extension-module", "abi3-py311"] }
 rayon = "1.10"
+wgpu = { version = "25", default-features = false, features = ["wgsl", "dx12", "vulkan", "metal"], optional = true }
+pollster = { version = "1", optional = true }
+
+[features]
+# GPU-Pfad (wgpu: DirectX 12 / Vulkan / Metal). Ohne: reiner CPU-Kern (rayon).
+default = ["gpu"]
+gpu = ["dep:wgpu", "dep:pollster"]
 
 [profile.release]
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "abort"
+panic = "unwind"   # Panics (z. B. im GPU-Treiberpfad) → Python-Ausnahme statt Prozessabbruch

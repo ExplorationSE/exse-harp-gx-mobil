@@ -12,6 +12,9 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
 
+#[cfg(feature = "gpu")]
+mod gpu;
+
 fn ro<'a>(b: &'a PyBuffer<i64>) -> PyResult<&'a [i64]> {
     if !b.is_c_contiguous() {
         return Err(PyValueError::new_err("Feld muss C-zusammenhängend sein"));
@@ -367,6 +370,180 @@ fn split_channels(py: Python<'_>, t: &Bound<'_, PyAny>, ch: &Bound<'_, PyAny>, l
     if ok { Ok(()) } else { Err(PyValueError::new_err("Ausgabefeldgrößen passen nicht zu den Kanalzählungen")) }
 }
 
+// ------------------------------------------------------------------------------------------------ GPU (wgpu)
+// Optional (cargo-Feature „gpu“, Standard an). Ohne Feature oder ohne Gerät liefern gpu_init/gpu_info None,
+// die Python-Seite rechnet dann auf der CPU. Fehler im GPU-Pfad (auch Panics) werden zu RuntimeError.
+
+#[cfg(feature = "gpu")]
+fn info_dict<'py>(py: Python<'py>, i: &gpu::Info) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+    let d = pyo3::types::PyDict::new(py);
+    d.set_item("name", &i.name)?;
+    d.set_item("backend", &i.backend)?;
+    d.set_item("device_type", &i.device_type)?;
+    d.set_item("driver", &i.driver)?;
+    d.set_item("driver_info", &i.driver_info)?;
+    d.set_item("vendor", i.vendor)?;
+    Ok(d)
+}
+
+#[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+fn panic_msg(e: Box<dyn std::any::Any + Send>) -> String {
+    e.downcast_ref::<&str>().map(|s| s.to_string())
+        .or_else(|| e.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unbekannt".into())
+}
+
+/// True, wenn der Kern mit GPU-Unterstützung (wgpu) gebaut wurde.
+#[pyfunction]
+fn gpu_compiled() -> bool {
+    cfg!(feature = "gpu")
+}
+
+/// Alle Grafik-Adapter (zur Diagnose): Liste von dicts (+ "compute": nutzbar für Compute-Shader).
+#[pyfunction]
+#[pyo3(signature = (backend=None))]
+fn gpu_adapters(py: Python<'_>, backend: Option<String>) -> PyResult<PyObject> {
+    #[cfg(feature = "gpu")]
+    {
+        let list = py.allow_threads(|| std::panic::catch_unwind(|| gpu::adapters(backend.as_deref())))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("GPU-Panic: {}", panic_msg(e))))?;
+        let out = pyo3::types::PyList::empty(py);
+        for (i, ok) in &list {
+            let d = info_dict(py, i)?;
+            d.set_item("compute", *ok)?;
+            out.append(d)?;
+        }
+        Ok(out.into_any().unbind())
+    }
+    #[cfg(not(feature = "gpu"))]
+    {
+        let _ = backend;
+        Ok(pyo3::types::PyList::empty(py).into_any().unbind())
+    }
+}
+
+/// GPU öffnen (bestes Gerät). allow_cpu: auch Software-Adapter (lavapipe/WARP) zulassen.
+/// Rückgabe: dict mit Gerätedaten oder None (kein Gerät / ohne GPU gebaut).
+#[pyfunction]
+#[pyo3(signature = (allow_cpu=false, backend=None))]
+fn gpu_init(py: Python<'_>, allow_cpu: bool, backend: Option<String>) -> PyResult<PyObject> {
+    #[cfg(feature = "gpu")]
+    {
+        let r = py.allow_threads(|| std::panic::catch_unwind(|| gpu::Gpu::new(allow_cpu, backend.as_deref())))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("GPU-Panic: {}", panic_msg(e))))?
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+        let mut g = gpu::GPU.lock().unwrap_or_else(|p| p.into_inner());
+        *g = r;
+        match g.as_ref() {
+            Some(x) => Ok(info_dict(py, &x.info)?.into_any().unbind()),
+            None => Ok(py.None()),
+        }
+    }
+    #[cfg(not(feature = "gpu"))]
+    {
+        let _ = (allow_cpu, backend);
+        Ok(py.None())
+    }
+}
+
+/// Gerätedaten der geöffneten GPU oder None.
+#[pyfunction]
+fn gpu_info(py: Python<'_>) -> PyResult<PyObject> {
+    #[cfg(feature = "gpu")]
+    {
+        let g = gpu::GPU.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(x) = g.as_ref() {
+            return Ok(info_dict(py, &x.info)?.into_any().unbind());
+        }
+    }
+    Ok(py.None())
+}
+
+/// Zeitaufteilung des letzten GPU-Aufrufs: dict(prep_s, wait_s, dispatches, blocks) oder None.
+#[pyfunction]
+fn gpu_profile(py: Python<'_>) -> PyResult<PyObject> {
+    #[cfg(feature = "gpu")]
+    {
+        let g = gpu::GPU.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(x) = g.as_ref() {
+            let d = pyo3::types::PyDict::new(py);
+            d.set_item("prep_s", x.prof.0)?;
+            d.set_item("wait_s", x.prof.1)?;
+            d.set_item("dispatches", x.prof.2)?;
+            d.set_item("blocks", x.prof.3)?;
+            return Ok(d.into_any().unbind());
+        }
+    }
+    Ok(py.None())
+}
+
+/// GPU schließen (Speicher freigeben).
+#[pyfunction]
+fn gpu_release() {
+    #[cfg(feature = "gpu")]
+    {
+        let mut g = gpu::GPU.lock().unwrap_or_else(|p| p.into_inner());
+        *g = None;
+    }
+}
+
+#[allow(clippy::too_many_arguments, unused_variables)]
+fn gpu_run(py: Python<'_>, ts: &[&Bound<'_, PyAny>], i0: usize, i1: usize, w: i64, bw: i64, nb: usize,
+           out: &Bound<'_, PyAny>) -> PyResult<()> {
+    let bufs: Vec<PyBuffer<i64>> = ts.iter().map(|x| PyBuffer::<i64>::get(x)).collect::<PyResult<_>>()?;
+    let sl: Vec<&[i64]> = bufs.iter().map(ro).collect::<PyResult<_>>()?;
+    let bo = PyBuffer::<i64>::get(out)?;
+    let o = rw_i64(&bo, nb.pow((sl.len() - 1) as u32))?;
+    check(w, bw, nb, i0, i1, sl[0].len())?;
+    #[cfg(feature = "gpu")]
+    {
+        let r = py.allow_threads(|| {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mut g = gpu::GPU.lock().unwrap_or_else(|p| p.into_inner());
+                match g.as_mut() {
+                    Some(x) => x.hist(sl[0], &sl[1..], i0, i1, w, bw, nb, o),
+                    None => Err("GPU nicht geöffnet (gpu_init)".into()),
+                }
+            }))
+        });
+        match r {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(pyo3::exceptions::PyRuntimeError::new_err(e)),
+            Err(e) => {
+                *gpu::GPU.lock().unwrap_or_else(|p| p.into_inner()) = None;
+                Err(pyo3::exceptions::PyRuntimeError::new_err(format!("GPU-Panic: {}", panic_msg(e))))
+            }
+        }
+    }
+    #[cfg(not(feature = "gpu"))]
+    {
+        let _ = o;
+        Err(pyo3::exceptions::PyRuntimeError::new_err("ohne GPU-Unterstützung gebaut"))
+    }
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn gpu_g2_hist(py: Python<'_>, ta: &Bound<'_, PyAny>, tb: &Bound<'_, PyAny>, i0: usize, i1: usize, w: i64, bw: i64,
+               nb: usize, out: &Bound<'_, PyAny>) -> PyResult<()> {
+    gpu_run(py, &[ta, tb], i0, i1, w, bw, nb, out)
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn gpu_g3_hist(py: Python<'_>, ta: &Bound<'_, PyAny>, tb: &Bound<'_, PyAny>, tc: &Bound<'_, PyAny>, i0: usize,
+               i1: usize, w: i64, bw: i64, nb: usize, out: &Bound<'_, PyAny>) -> PyResult<()> {
+    gpu_run(py, &[ta, tb, tc], i0, i1, w, bw, nb, out)
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn gpu_g4_hist(py: Python<'_>, ta: &Bound<'_, PyAny>, tb: &Bound<'_, PyAny>, tc: &Bound<'_, PyAny>,
+               td: &Bound<'_, PyAny>, i0: usize, i1: usize, w: i64, bw: i64, nb: usize, out: &Bound<'_, PyAny>)
+               -> PyResult<()> {
+    gpu_run(py, &[ta, tb, tc, td], i0, i1, w, bw, nb, out)
+}
+
 #[pymodule]
 fn harp_gx_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
@@ -378,5 +555,14 @@ fn harp_gx_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(split_channels, m)?)?;
     m.add_function(wrap_pyfunction!(init_threads, m)?)?;
     m.add_function(wrap_pyfunction!(n_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_compiled, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_adapters, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_init, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_info, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_release, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_profile, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_g2_hist, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_g3_hist, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_g4_hist, m)?)?;
     Ok(())
 }
