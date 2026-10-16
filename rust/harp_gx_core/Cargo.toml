@@ -1,0 +1,21 @@
+[package]
+name = "harp_gx_core"
+version = "1.1.0-dev"
+edition = "2021"
+description = "Rust-Rechenkern (g²/g³/g⁴-Koinzidenzhistogramme) für ExSE Harp GX Mobil"
+license = "MIT"
+publish = false
+
+[lib]
+name = "harp_gx_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.25", features = ["extension-module", "abi3-py311"] }
+rayon = "1.10"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

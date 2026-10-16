@@ -1,5 +1,35 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.1.0-dev – 16.10.2026 (lokal, nicht veröffentlicht)
+
+- **Rust-Rechenkern `harp_gx_core`** (PyO3 + maturin, rayon, mehrkernig), Quellen unter `rust/harp_gx_core`:
+  - g²/g³/g⁴-Histogramme, Fensterzählungen, zusammengefasste Kachelsummen (Zentral- und Seitenpeaks in einem Lauf)
+    und die Kanalaufteilung der Zeitmarken.
+  - Blockweise über die Start-Marken parallel; jeder Block hat eigene Histogramme, die Fenster überlappen die
+    Blockgrenzen. Ganzzahlige Summen, daher bitgleich zu Numba/NumPy und unabhängig von Block- und Thread-Zahl.
+  - Ungültige Geometrie oder Feldgrößen lösen `ValueError` aus statt eines Absturzes.
+- **Reihenfolge Rust > Numba > NumPy** mit automatischem Rückfall:
+  - beim Import, wenn ein Paket fehlt, und zur Laufzeit, wenn ein Rust-Aufruf fehlschlägt;
+  - der Grund steht in der Info-Zeile.
+  - Umgebungsvariablen: `HARP_GX_ENGINE=rust|numba|numpy` (erzwingen), `HARP_GX_THREADS=n`,
+    `HARP_GX_NO_RUST`, `HARP_GX_NO_NUMBA`.
+- Info-Zeile „Rechenkern“: aktiver Kern, Threads, Mtags/s, z. B. „Rust (rayon) · 4 Threads · …“.
+- Rechenkern-Schicht: Kachelsummen je Start-Kanal in einem Aufruf (vorher eine Fensterzählung je Schlüssel).
+  Ergebnisse auf allen 9 Demodateien unverändert (Vergleich alt/neu, Numba/Rust).
+- Tests `tests/test_gx_rust.py`:
+  - Gleichheit Rust = Numba = NumPy für Kernel, Kachelsummen, Kanalaufteilung und alle Demodateien;
+  - Invarianz gegen Chunkgröße und Threadzahl;
+  - Engine-Reihenfolge, Erzwingen, Rückfall beim Import und zur Laufzeit.
+- `tools/bench_engines.py`: Mtags/s und Frame-Zeit je Datei, Engine und Threadzahl.
+- Windows-Verteilung vorbereitet:
+  - `.github/workflows/wheels.yml` baut ein abi3-Wheel (cp311-abi3, gilt für Python 3.11–3.13) für Windows,
+    Linux und macOS;
+  - es testet auf 3.11/3.12/3.13 und hängt die Wheels bei einem Tag `v*` an das Release.
+  - `install_windows.bat` installiert ein Wheel aus `wheels\`, falls vorhanden. Sonst rechnet Numba wie bisher,
+    ein Compiler ist nicht nötig.
+  - `tests.yml` baut den Rust-Kern mit, damit die Gleichheitstests in CI laufen.
+- Service-Worker-Cache `exse-harp-gx-mobil-1.1.0-dev-r1`.
+
 ## 1.0.1 – 16.10.2026
 
 - g³/g⁴-Karten: Die Farbskala reicht jetzt bis 4 Dekaden unter das Maximum (vorher 3).

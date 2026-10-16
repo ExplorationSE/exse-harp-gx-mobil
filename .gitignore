@@ -9,3 +9,5 @@ data/*.PTU
 tools/cloudflared.exe
 tools/*.download
 screenshot-*-full.png
+rust/**/target/
+wheels/*.whl

@@ -150,7 +150,7 @@ def test_numpy_fallback_subprocess(files):
             "delays={2:1500.0,3:3000.0,4:4500.0},auto_cal=False));"
             "eng.feed(e.time.astype(np.int64), e.channel.astype(np.int16)); eng.process();"
             "print(K.BACKEND, int(eng.map3.sum()), int(eng.cube4.sum()))") % (ROOT, files["thermal_pulsed"])
-    env = dict(os.environ, HARP_GX_NO_NUMBA="1")
+    env = dict(os.environ, HARP_GX_NO_NUMBA="1", HARP_GX_ENGINE="numpy")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=300)
     assert out.returncode == 0, out.stderr
     be, n3, n4 = out.stdout.split()
@@ -182,7 +182,7 @@ def test_worker_process(files):
         assert res is not None and res["T_s"] > 1.0
         g4 = {tuple(x["ch"]): x["g"] for x in res["tiles"]}[(1, 2, 3, 4)]
         assert abs(g4 - 24) / 24 < 0.12
-        assert r.info.get("backend") in ("numba", "numpy")
+        assert r.info.get("backend") in ("rust", "numba", "numpy")
     finally:
         r.stop()
     assert not r.alive
@@ -210,7 +210,7 @@ def test_server_streams_binary_gn_frames(tmp_path, files, monkeypatch):
                     break
         assert got is not None, "kein g³-Frame erhalten"
         h, a = got
-        assert a["map3"].shape == (129, 129) and h["backend"] in ("numba", "numpy")
+        assert a["map3"].shape == (129, 129) and h["backend"] in ("rust", "numba", "numpy")
         assert len(m["bytes"]) < 200_000
         st = cl.get("/api/status").json()
         assert st["settings"]["gn_range_ps"] == 2_500_000 and st["gn"]["period_ps"] == pytest.approx(1e6)

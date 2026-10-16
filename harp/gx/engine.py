@@ -129,13 +129,12 @@ class GnEngine:
     # ------------------------------------------------------------ Daten
     def feed(self, t: np.ndarray, ch: np.ndarray) -> None:
         t = np.asarray(t, np.int64); ch = np.asarray(ch)
-        for k in np.unique(ch):
-            k = int(k)
-            if k not in self.cfg.channels:
-                continue
-            x = t[ch == k]
+        if not t.size:
+            self._tmax = getattr(self, "_tmax", 0)
+            return
+        for k, x in K.split_channels(t, ch, self.cfg.channels, self.cfg.backend).items():
             self.buf[k] = np.concatenate([self.buf[k], x]) if k in self.buf else x
-        self._tmax = int(t.max()) if t.size else getattr(self, "_tmax", 0)
+        self._tmax = int(t.max())
 
     def _corr(self, k):
         return self.buf[k] - int(round(self.cfg.delays.get(k, 0.0)))
@@ -174,30 +173,27 @@ class GnEngine:
         # Kacheln: alle Kombinationen (Paare, Tripel, Quadrupel) bei τ = 0
         w = self.cfg.win_ps
         P = self.cfg.period_ps
-        wc_cache: dict[tuple, np.ndarray] = {}
-
-        def wc(a, x, k):   # Fensterzählungen je Start-Marke, einmal je (Start, Kanal, Pulsabstand)
-            key = (a, x, k)
-            if key not in wc_cache:
-                ts = cor[a][rng[a][0]:rng[a][1]]
-                wc_cache[key] = K.window_counts(ts, cor[x], k * P, w, be)
-            return wc_cache[key]
-
+        # je Start-Kanal ein Aufruf: Schlüssel (Kanal, Pulsabstand) → Fensterzählungen, Terme = Produkte
+        plan: dict[int, tuple[dict, list]] = {}
         for order in (2, 3, 4):
             for combo in itertools.combinations(sorted(chans), order):
                 a, others = combo[0], combo[1:]
-                prod = wc(a, others[0], 0).copy()
-                for x in others[1:]:
-                    prod *= wc(a, x, 0)
-                self.center[combo] = self.center.get(combo, 0.0) + float(prod.sum())
-                if P > 0:
-                    s = 0.0
-                    for ks in SIDE_SETS:
-                        prod = wc(a, others[0], ks[0]).copy()
-                        for x, k in zip(others[1:], ks[1:]):
-                            prod *= wc(a, x, k)
-                        s += float(prod.sum())
-                    self.side[combo] = self.side.get(combo, 0.0) + s / len(SIDE_SETS)
+                keys, terms = plan.setdefault(a, ({}, []))
+                sets = [(0,) * len(others)] + (list(SIDE_SETS) if P > 0 else [])
+                for si, ks in enumerate(sets):
+                    terms.append((combo, si, [keys.setdefault((x, k), len(keys)) for x, k in zip(others, ks)]))
+        for a, (keys, terms) in plan.items():
+            ts = cor[a][rng[a][0]:rng[a][1]]
+            kl = list(keys)
+            sums = K.tile_sums(ts, [cor[x] for x, _ in kl], [k * P for _, k in kl], w, [t[2] for t in terms], be)
+            side: dict[tuple, float] = {}
+            for (combo, si, _), v in zip(terms, sums):
+                if si == 0:
+                    self.center[combo] = self.center.get(combo, 0.0) + v
+                else:
+                    side[combo] = side.get(combo, 0.0) + v
+            for combo, s in side.items():
+                self.side[combo] = self.side.get(combo, 0.0) + s / len(SIDE_SETS)
         # Kalibrierung (Rohzeiten, alle Paare)
         if not self.cal_done:
             for a, b in itertools.combinations(sorted(chans), 2):
@@ -399,7 +395,8 @@ class GnEngine:
                 "cal_missing": list(getattr(self, "cal_missing", [])), "geo": self.geo,
                 "win_ps": c.win_ps, "range_set_ps": c.range_ps, "range_ps": self._w(c.nb3)[0], "range4_ps": self._w(c.nb4)[0],
                 "bw3_ps": self._w(c.nb3)[1], "bw4_ps": self._w(c.nb4)[1], "n3": int(self.map3.sum()),
-                "n4": int(self.cube4.sum()), "stats": dict(self.stats), "backend": c.backend or K.BACKEND}
+                "n4": int(self.cube4.sum()), "stats": dict(self.stats), "backend": c.backend or K.BACKEND,
+                "threads": K.n_threads(c.backend), "engine_note": K.FALLBACK_NOTE}
 
     def _norm(self, h: np.ndarray, combo, nb) -> np.ndarray:
         """cw: g = N / (N_a · Π N_x/T · BW). Gepulst: zusätzlich auf die mittlere Seitenpeak-Höhe skaliert."""

@@ -417,7 +417,7 @@ function renderInfo() {
   if (gh) {
     const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
     rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_status === "unnoetig" ? " (vernachlässigbar, g² breit)" : gh.cal_status === "kein_merkmal" ? " (kein Merkmal – ohne Offsets)" : gh.cal_status === "teilweise" ? " (unvollständig)" : gh.cal_done ? "" : " (Kalibrierung läuft)")],
-      ["Rechenkern", `${gh.backend}${gh.threads ? " · " + gh.threads + " Threads" : ""} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame`]);
+      ["Rechenkern", `${ENGINE_NAME[gh.backend] || gh.backend}${gh.threads ? " · " + gh.threads + " Threads" : ""} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame${gh.engine_note ? " · " + gh.engine_note : ""}`]);
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
   if (st.version) $("appver").textContent = "ExSE Harp GX Mobil " + st.version;
@@ -530,6 +530,7 @@ function viridis(t) {
 // Farbskala: logarithmische 1-2-5-Teilung über den sichtbaren Bereich [10^lo, 10^hi], immer mehrere Marken, 1 als Bezug
 // Farbskala der g³/g⁴-Karten: höchstens 4 Dekaden unter dem Maximum, sonst der Datenbereich (adaptiv)
 let MAP_DECADES = 4;   // let: für Vergleichs-Screenshots umstellbar
+const ENGINE_NAME = { rust: "Rust (rayon)", numba: "Numba", numpy: "NumPy" };   // aktiver Rechenkern (Info-Zeile)
 function colorTicks(lo, hi, maxN) {
   const pick = (ms) => { const t = []; for (let e = Math.floor(lo) - 1; e <= Math.ceil(hi); e++) for (const m of ms) {
     const v = m * 10 ** e, l = Math.log10(v); if (l >= lo - 1e-9 && l <= hi + 1e-9) t.push(+v.toPrecision(3)); } return t; };

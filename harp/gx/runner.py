@@ -19,7 +19,7 @@ from .engine import GnConfig, GnEngine
 def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - läuft im Kindprozess
     from . import kernels as K
     warm = K.warmup()
-    outq.put(("ready", {"backend": K.BACKEND, "threads": K.n_threads(), "warmup_s": warm}))
+    outq.put(("ready", {**K.info(), "warmup_s": warm}))
     eng = GnEngine()
     last_out = 0.0
     dirty = False

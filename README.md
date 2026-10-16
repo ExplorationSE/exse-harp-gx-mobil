@@ -85,6 +85,15 @@ Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall). Ansichten g³ (
 (τ3-Schnitt, Diagonale, g⁴(0,0,0)). Messung auf der Box (8 Threads, Tempo 1×, Ansicht g³): 5,8–78 Mtags/s
 Rechenkapazität je Demodatei, Frame-Latenz median ≈ 150 ms, Frames 0,6–2,1 kB.
 
+**1.1.0 (in Arbeit) – Rust-Rechenkern:** `harp_gx_core` (PyO3/rayon) unter `rust/harp_gx_core`, bitgleich zu Numba.
+Die Reihenfolge ist Rust > Numba > NumPy mit automatischem Rückfall; der aktive Kern steht in der Info-Zeile „Rechenkern“.
+- Umgebungsvariablen: `HARP_GX_ENGINE=rust|numba|numpy` (erzwingen), `HARP_GX_THREADS=4` (Threads).
+- Windows: Ein fertiges Wheel `harp_gx_core-…-cp311-abi3-win_amd64.whl` aus dem Release in den Ordner `wheels\`
+  legen und `install_windows.bat` ausführen. Ein Compiler ist nicht nötig. Ohne Wheel rechnet Numba.
+- Selbst bauen (Rust ≥ 1.80): `pip install maturin` und `maturin build --release -m rust/harp_gx_core/Cargo.toml -o wheelhouse`,
+  danach `pip install wheelhouse/*.whl`.
+- Vergleich: `python tools/bench_engines.py --threads 1,2,4,8`.
+
 **0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
 im g² (FWHM ≥ 50 ns) gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach
 Statistik gewählt (≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns.

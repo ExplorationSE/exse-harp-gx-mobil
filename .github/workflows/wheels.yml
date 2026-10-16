@@ -1,0 +1,91 @@
+name: Rust-Wheels
+
+# Baut den Rust-Rechenkern harp_gx_core als abi3-Wheel (cp311-abi3 = ein Wheel für Python 3.11–3.13+),
+# prüft Import und Bitgleichheit gegen Numba auf jeder Python-Version und hängt die Wheels bei einem
+# Release-Tag (v*) an das GitHub-Release an. Nutzer brauchen dadurch keinen Compiler.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["rust/**", ".github/workflows/wheels.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Wheel ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Wheel bauen (maturin, release, abi3-py311)
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: rust/harp_gx_core
+          command: build
+          args: --release --out ../../wheelhouse
+          manylinux: auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  test:
+    name: Test ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}
+          path: wheelhouse
+      - name: Abhängigkeiten und Wheel installieren
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install --no-deps wheelhouse/*.whl
+      - name: Rechenkern prüfen
+        shell: bash
+        run: |
+          python -c "import harp_gx_core as r; print('harp_gx_core', r.__version__, r.n_threads(), 'Threads')"
+          python -c "from harp.gx import kernels as K; i = K.info(); print(i); assert i['backend'] == 'rust', i"
+      - name: Gleichheit Rust = Numba = NumPy, Rückfall
+        run: python -m pytest -q tests/test_gx_rust.py tests/test_gx_engine.py
+
+  release:
+    name: Wheels an Release anhängen
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: wheelhouse
+      - name: Hochladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" wheelhouse/*.whl --clobber --repo "${GITHUB_REPOSITORY}"

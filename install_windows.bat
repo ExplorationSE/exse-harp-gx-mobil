@@ -1,6 +1,6 @@
 @echo off
 rem ExSE Harp GX Mobil - einmalige Installation (Windows 10/11, 64 Bit)
-setlocal
+setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 set "PYEXE="
 
@@ -28,6 +28,12 @@ echo Installiere Pakete (einige Minuten) ...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 if not "%errorlevel%"=="0" goto pip_failed
+rem 3) Optional: Rust-Rechenkern (fertiges Wheel aus dem Release, Ordner wheels\). Fehlt es, rechnet Numba.
+for %%W in ("wheels\harp_gx_core-*-win_amd64.whl") do (
+  echo Installiere Rust-Rechenkern %%~nxW ...
+  ".venv\Scripts\python.exe" -m pip install --force-reinstall --no-deps "%%~fW"
+  if not "!errorlevel!"=="0" echo   Hinweis: Rust-Rechenkern nicht installiert - es rechnet Numba.
+)
 echo.
 echo Fertig. Starten:
 echo   start_online.bat   - Zugriff ueber das Internet (Cloudflare Quick Tunnel)
