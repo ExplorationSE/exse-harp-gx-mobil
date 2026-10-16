@@ -105,3 +105,27 @@ def test_view_order():
     btn = html[html.index('id="viewBtn"'):html.index("</button>", html.index('id="viewBtn"'))]
     assert re.findall(r'data-v="(\w+)"', btn) == ["hist", "trace", "corr", "g3", "g4"]
     assert 'const VIEWS = ["hist", "trace", "corr", "g3", "g4"];' in APP.read_text(encoding="utf-8")
+
+
+def test_map_colour_range_four_decades():
+    """Farbskala: höchstens 4 Dekaden unter dem Maximum, sonst Datenbereich (adaptiv)."""
+    src = APP.read_text(encoding="utf-8")
+    assert re.search(r"MAP_DECADES = 4;", src)
+    assert "lo = Math.max(Math.log10(mn), hi - MAP_DECADES)" in src
+    t = _ticks([[3.27, 7.27, 15]])[0]                       # Tripel-Karte: 1,9e3 … 1,9e7
+    assert min(t) <= 5000 and max(t) >= 1e7 and len(t) >= 4
+    t = _ticks([[-3, 0.7, 15]])[0]                           # thermisch gepulst: 0,001 … 5, mit 1
+    assert 1 in t and min(t) <= 0.002
+
+
+def test_tick_labels_short():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node nicht installiert")
+    src = APP.read_text(encoding="utf-8")
+    fn = re.search(r"function fmtTick\(v\) \{.*?\}", src).group(0)
+    out = subprocess.run([node, "-e", fn + "console.log(JSON.stringify([0.001,0.005,0.01,0.5,1,5000,2e4,1e7].map(fmtTick)))"],
+                         capture_output=True, text=True, timeout=30)
+    labels = json.loads(out.stdout)
+    assert labels == ["1e-3", "5e-3", "0.01", "0.5", "1", "5000", "2e4", "1e7"]
+    assert max(map(len, labels)) <= 4

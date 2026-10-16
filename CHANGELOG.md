@@ -1,5 +1,19 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.0.1 – 16.10.2026
+
+- g³/g⁴-Karten: Die Farbskala reicht jetzt bis 4 Dekaden unter das Maximum (vorher 3).
+  - Ist der Datenbereich kleiner, gilt weiter der Datenbereich (adaptiv: min(4 Dekaden, Datenbereich)).
+  - Schwächere Strukturen werden sichtbar, z. B. die g³-Linien (≈ 4·10³ je Bin) neben dem Tripel-Peak (≈ 2·10⁷).
+  - Die 1-2-5-Teilung bleibt, ebenso die hervorgehobene 1.
+- Vergleich am gleichen Datenstand (3 und 4 Dekaden), Ansichten g³-Karte und g⁴-Schnitt:
+  - Laser, thermisch cw und alle g⁴-Schnitte: unverändert, weil ihr Datenbereich kleiner als 3 Dekaden ist.
+  - Thermisch gepulst g³: zusätzlich die Dekade 10⁻³ (seltene Nebenstrukturen), sonst gleich.
+  - Tripel und Paare: Linien deutlich sichtbarer.
+- Skalenbeschriftung kurz gehalten: Werte unter 0,01 als „5e-3“. „0.005“ wurde am rechten Rand abgeschnitten.
+- README: g³-Screenshot der Tripel-Datei neu.
+- Service-Worker-Cache `exse-harp-gx-mobil-1.0.1-r1`. Daten-Zips unverändert (Inhalt wie 1.0.0).
+
 ## 1.0.0 – 16.10.2026
 
 Erste veröffentlichte Version von **ExSE Harp GX Mobil**. Sie fasst die Entwicklungsstände 0.1.0 bis 0.2.7 zusammen;

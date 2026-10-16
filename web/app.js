@@ -528,6 +528,8 @@ function viridis(t) {
   return VIRIDIS[i].map((c, k) => Math.round(c + (VIRIDIS[i + 1][k] - c) * f));
 }
 // Farbskala: logarithmische 1-2-5-Teilung über den sichtbaren Bereich [10^lo, 10^hi], immer mehrere Marken, 1 als Bezug
+// Farbskala der g³/g⁴-Karten: höchstens 4 Dekaden unter dem Maximum, sonst der Datenbereich (adaptiv)
+let MAP_DECADES = 4;   // let: für Vergleichs-Screenshots umstellbar
 function colorTicks(lo, hi, maxN) {
   const pick = (ms) => { const t = []; for (let e = Math.floor(lo) - 1; e <= Math.ceil(hi); e++) for (const m of ms) {
     const v = m * 10 ** e, l = Math.log10(v); if (l >= lo - 1e-9 && l <= hi + 1e-9) t.push(+v.toPrecision(3)); } return t; };
@@ -541,7 +543,7 @@ function colorTicks(lo, hi, maxN) {
   }
   return t;
 }
-function fmtTick(v) { return v >= 1e4 ? v.toExponential(0).replace("e+", "e") : String(+v.toPrecision(2)); }
+function fmtTick(v) { return v >= 1e4 || v < 0.01 ? v.toExponential(0).replace("e+", "e") : String(+v.toPrecision(2)); }   // kurz: 2e4, 5e-3 (passt rechts neben die Skala)
 function niceStep(r) { const p = 10 ** Math.floor(Math.log10(r)), m = r / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
 function fmtTau(ns) { return Math.abs(ns) >= 1000 ? +(ns / 1000).toPrecision(3) + "µ" : String(+ns.toPrecision(3)); }
 function tauUnit(Rns) { return Rns >= 2000 ? ["µs", 1000] : ["ns", 1]; }
@@ -557,7 +559,7 @@ function drawHeat(vals, nb, Rps, xl, yl) {
   let mx = -Infinity, mn = Infinity;
   for (const v of vals) if (v > 0) { if (v > mx) mx = v; if (v < mn) mn = v; }
   if (!(mx > 0)) { mx = 10; mn = 0.1; }
-  const hi = Math.log10(mx), lo = Math.max(Math.log10(mn), hi - 3), span = Math.max(hi - lo, 1e-6);
+  const hi = Math.log10(mx), lo = Math.max(Math.log10(mn), hi - MAP_DECADES), span = Math.max(hi - lo, 1e-6);
   const img = new ImageData(nb, nb);
   for (let x = 0; x < nb; x++) for (let y = 0; y < nb; y++) {
     const v = vals[x * nb + y], p = ((nb - 1 - y) * nb + x) * 4;
