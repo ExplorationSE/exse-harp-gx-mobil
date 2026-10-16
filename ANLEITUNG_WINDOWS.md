@@ -74,6 +74,10 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
    dem Editor ansehen.
 3. Das Skript legt eine eigene Python-Umgebung (`.venv`) im Ordner an und lädt die Pakete (FastAPI, uvicorn,
    NumPy, qrcode, pytest). Das dauert je nach Verbindung 1–5 Minuten. Es wird **kein Compiler** benötigt.
+   Ab Version 1.1 installiert es danach den Rust-Rechenkern aus dem Ordner `wheels\`
+   (Meldung „Installiere Rust-Rechenkern harp_gx_core-…whl …“). Fehlt das Wheel oder passt es nicht, rechnet
+   das Programm mit Numba weiter – genauso richtig, nur etwas langsamer. Der aktive Kern steht in der App in der
+   Info-Zeile „Rechenkern“, z. B. „Rust (rayon) · 4 Threads · … Mtags/s“.
 4. Am Ende steht „Fertig.“ – Fenster mit einer Taste schließen.
 
 ## 5. Online starten: `start_online.bat`

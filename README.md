@@ -85,7 +85,7 @@ Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall). Ansichten g³ (
 (τ3-Schnitt, Diagonale, g⁴(0,0,0)). Messung auf der Box (8 Threads, Tempo 1×, Ansicht g³): 5,8–78 Mtags/s
 Rechenkapazität je Demodatei, Frame-Latenz median ≈ 150 ms, Frames 0,6–2,1 kB.
 
-**1.1.0 (in Arbeit) – Rust-Rechenkern:** `harp_gx_core` (PyO3/rayon) unter `rust/harp_gx_core`, bitgleich zu Numba.
+**1.1.0 – Rust-Rechenkern:** `harp_gx_core` (PyO3/rayon) unter `rust/harp_gx_core`, bitgleich zu Numba.
 Die Reihenfolge ist Rust > Numba > NumPy mit automatischem Rückfall; der aktive Kern steht in der Info-Zeile „Rechenkern“.
 - Umgebungsvariablen: `HARP_GX_ENGINE=rust|numba|numpy` (erzwingen), `HARP_GX_THREADS=4` (Threads).
 - Windows: Ein fertiges Wheel `harp_gx_core-…-cp311-abi3-win_amd64.whl` aus dem Release in den Ordner `wheels\`

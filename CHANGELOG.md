@@ -1,6 +1,20 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
-## 1.1.0-dev – 16.10.2026 (lokal, nicht veröffentlicht)
+## 1.1.0 – 16.10.2026
+
+Veröffentlichung des Rust-Rechenkerns (getestet als 1.1.0-dev, unter Windows mit Python 3.11–3.13).
+
+- **Zählraten T2:** Der Sync-Eingang ist in T2 ein normaler Datenkanal K0 mit eigener Kachel „K0“.
+  - Enthält die T2-Datei keine K0-Ereignisse, entfällt K0 ganz: keine Kachel „Sync 0“ mehr
+    (z. B. bei `Demo_Synthetisch_T2_Einzelphotonen_cw_Antibunching_4s.ptu`).
+  - Info-Zeile „Modus“ in T2 ohne Sync-Rate („T2, 4 Kanäle“ bzw. „T2, 2 Kanäle + K0“).
+  - T3 unverändert: Kachel „Sync“ und „Sync … cps“ in der Info-Zeile.
+- Version 1.1.0 in Python-Paket, Rust-Kern (Cargo/pyproject), App-Fußzeile und Anleitung (PDF);
+  Service-Worker-Cache `exse-harp-gx-mobil-1.1.0-r1`.
+- Das Release enthält im Programm-Zip das Windows-Wheel unter `wheels\`; `install_windows.bat` installiert es
+  automatisch, sonst rechnet Numba. Die Anleitung (Abschnitt 4) beschreibt das.
+
+Rust-Rechenkern (seit 1.1.0-dev):
 
 - **Rust-Rechenkern `harp_gx_core`** (PyO3 + maturin, rayon, mehrkernig), Quellen unter `rust/harp_gx_core`:
   - g²/g³/g⁴-Histogramme, Fensterzählungen, zusammengefasste Kachelsummen (Zentral- und Seitenpeaks in einem Lauf)
