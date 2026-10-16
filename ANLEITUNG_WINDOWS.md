@@ -131,7 +131,7 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
     Peaks alle 25 ns, der **Mittelpeak bei 0 fehlt fast** (Antibunching); `Demo_Synthetisch_T2_Heralded_K0_g2h_8s.ptu` –
     K0 (violett) = Herald-Detektor am Sync-Eingang, K1/K2 = HBT, Peaks bei +12 ns (K1) und +15 ns (K2);
     `Demo_Synthetisch_T2_HOM_Dip_Scan_20s.ptu` – in der Ansicht **Zeit** sieht man den HOM-Dip nicht direkt in den
-    Einzelraten (nur in den Koinzidenzen, Anzeige folgt in 0.2);
+    Einzelraten, sondern in den Koinzidenzen (Ansicht **g²**, Kachel K1K2);
     `Demo_Synthetisch_T2_Photonenpaare_SPDC_cw_3s.ptu` – Photonenpaare, in **g²** ein scharfer Peak g²(0) ≈ 500
     zwischen K1/K2, K1/K4, K3/K2, K3/K4, flach (≈ 1) zwischen K1/K3 und K2/K4;
     `Demo_Synthetisch_T2_Photonentripel_cw_5s.ptu` – Photonentripel, in **g³** ein starker Peak g³(0,0) ≈ 7·10⁵.

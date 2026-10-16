@@ -1,5 +1,36 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.0.0 – 16.10.2026
+
+Erste veröffentlichte Version von **ExSE Harp GX Mobil**. Sie fasst die Entwicklungsstände 0.1.0 bis 0.2.7 zusammen;
+deren Einzelheiten stehen unten. Weiterhin eine Simulation mit synthetischen PTU-Dateien, noch ohne Schnittstelle zu
+einer echten Harp.
+- **Korrelationen g²/g³/g⁴ live** aus T2-Zeitmarken (0.2.0):
+  - Rechenkern `harp/gx` mit Numba im eigenen Worker-Prozess und NumPy-Rückfall (bitgleich).
+  - Gleitendes Koinzidenzfenster; Normierung für cw auf Zufallskoinzidenzen, für gepulste Quellen auf Seitenpeaks.
+  - Heralded g²ₕ mit K0 als Herald; kompakte Binär-Frames.
+- **Automatik:** Kabel-Laufzeiten werden aus den g²-Kurven kalibriert. Bei cw werden Fenster und Bereich aus der
+  g²-Breite oder nach Statistik gewählt (0.2.1). Kacheln mit wenig Daten zeigen „sammelt Daten …“.
+- **Oberfläche (0.2.2–0.2.7):**
+  - Ansichten Histo | Zeit | g² | g³ | g⁴, alle mit gleicher Diagrammhöhe.
+  - Große Kachel g²(0) / g³(0,0) / g⁴(0,0,0) mit n und Fehler, Kachelliste und graue Hinweise, in allen
+    Ansichten gleich aufgebaut.
+  - Log. 1-2-5-Farbskala der Karten; τ₃-Regler unter der g⁴-Karte; Messwertzeile auch in g⁴.
+  - Lesbare g-Exponenten; einzeilige Steuerung bei 360/390 px.
+- **Neun synthetische Demodateien** mit analytisch bekannten Sollwerten (0.1.0, 0.2.1, 0.2.7):
+  thermisch cw und gepulst, kohärenter Laser, Einzelphotonen cw und gepulst, Heralded (K0), HOM-Dip,
+  Photonenpaare (SPDC) und Photonentripel.
+  Dazu Generator, Prüfwerkzeug und Validierungstests (`tools/generate_gx.py`, `tools/validate_gx.py`,
+  `tests/test_gn_validation.py`).
+- **Allgemeine Bezeichnung „Harp“** (z. B. HydraHarp 500, MultiHarp, PicoHarp 330, TimeHarp 260; 0.2.5/0.2.6).
+  Hinweistext: „Simulation mit synthetischen PTU-Dateien – diese Version enthält noch keine Schnittstelle zu einer
+  echten Harp.“
+- Veröffentlichung auf GitHub:
+  - MIT-Lizenz, CI (pytest auf Python 3.11 und 3.13), Screenshots im README.
+  - Release mit Programm-Zip, Daten-Zips 1–8 (je < 25 MB) und Anleitung als PDF.
+  - Die PTU-Daten liegen nicht im Git-Repository.
+- Service-Worker-Cache `exse-harp-gx-mobil-1.0.0-r1`.
+
 ## 0.2.7 – 15.10.2026
 
 - g⁴-Ansicht: neben der großen Kachel g⁴(0,0,0) steht jetzt die vollständige Messwertzeile wie in g³.

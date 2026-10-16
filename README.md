@@ -26,8 +26,10 @@ Steuerung im Browser (PWA); derzeit **Simulation aus PTU-Dateien, noch ohne Ger�
 · Änderungen: [`CHANGELOG.md`](CHANGELOG.md) · Lizenz: [MIT](#13-lizenz)
 
 <p>
-  <img src="docs/screenshot-v103-header.png" alt="Kopfzeile mit Ansichtsumschalter und Kanaltasten" width="360">
-  <img src="docs/screenshot-v103-info.png" alt="Infobereich mit Version, Kennzeichen Simulation und Hinweis" width="360">
+  <img src="docs/screenshot-gx-g2-paare.png" alt="g²-Ansicht: Photonenpaare, scharfer Peak g²(0) ≈ 500 mit Kachel und Kanalpaaren" width="190">
+  <img src="docs/screenshot-gx-g3-tripel.png" alt="g³-Karte: Photonentripel, starker Peak g³(0,0) ≈ 7·10⁵" width="190">
+  <img src="docs/screenshot-gx-g4-thermisch.png" alt="g⁴-Schnitt bei τ₃ = 0: thermisch gepulst, g⁴(0,0,0) ≈ 24, τ₃-Regler und Messwertzeile" width="190">
+  <img src="docs/screenshot-gx-histo.png" alt="Histogramm-Ansicht mit Kanaltasten K1–K4" width="190">
 </p>
 
 ## ExSE Harp GX Mobil – Ziel und Stand
@@ -37,12 +39,15 @@ Steuerung im Browser (PWA); derzeit **Simulation aus PTU-Dateien, noch ohne Ger�
 **g⁽²⁾, g⁽³⁾, g⁽⁴⁾** aus T2-Zeitmarken in Echtzeit, mit schnellem Rechenkern (später Rust, GPU über wgpu/Vulkan/DirectX 12,
 auch für integrierte Intel-Grafik) und Anzeige auf dem Handy.
 
-**Version 0.1 (dieser Stand):** Grundlage für die Validierung.
-- Sieben synthetische T2-Demodateien mit **analytisch bekannten** g⁽²⁾/g⁽³⁾/g⁽⁴⁾ (s. Tabelle).
+**Version 1.0 (dieser Stand):**
+- Fünf Ansichten **Histo | Zeit | g² | g³ | g⁴** mit großer Kachel g²(0) / g³(0,0) / g⁴(0,0,0), Kachelliste aller
+  Kanal-Kombinationen, Heralded g²ₕ (K0 als Herald) und grauen Hinweisen. Die g³/g⁴-Karten haben eine log. Farbskala.
+- Live-Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall, bitgleich), kompakte Binär-Frames.
+- Automatische Kalibrierung der Kabel-Laufzeiten aus den g²-Kurven; bei cw automatische Wahl von Fenster und Bereich.
+- Neun synthetische T2-Demodateien mit **analytisch bekannten** g⁽²⁾/g⁽³⁾/g⁽⁴⁾ (s. Tabelle), als Daten-Zips im Release.
 - Referenz-Implementierung `harp/gn.py` (NumPy, exakt): Koinzidenzzählung mit Fenster, Normierung für
   Dauerstrich (Zufallskoinzidenzen) und gepulst (Seitenpeaks).
 - Validierungstests `tests/test_gn_validation.py` und Prüfwerkzeug `tools/validate_gx.py`.
-- Die App-Oberfläche entspricht noch Mobil 1.0.6 (Histo | g² | Zeit); g³/g⁴-Ansichten folgen in 0.2.
 
 | Datei (`data/`) | Szenario | Sollwerte | gemessen (Demodatei) |
 |---|---|---|---|
@@ -74,7 +79,7 @@ python tools\validate_gx.py              REM g(n) berechnen und mit den Sollwert
 **Normierung:** cw: g⁽ⁿ⁾ = N_Tupel / (N_a · Π_j N_j·w/T). Gepulst: g⁽ⁿ⁾(0) = N(0,…,0) / ⟨N(k₁P, k₂P, …)⟩ mit
 paarweise verschiedenen Pulsabständen k_j ≠ 0 (Seitenpeaks). Heralded: g²_h = N_h · N_h12 / (N_h1 · N_h2).
 
-## GX 0.2 – Live g²/g³/g⁴
+## Live g²/g³/g⁴ – Rechenkern und Ansichten
 
 Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall). Ansichten g³ (Heatmap + Schnitte) und g⁴
 (τ3-Schnitt, Diagonale, g⁴(0,0,0)). Messung auf der Box (8 Threads, Tempo 1×, Ansicht g³): 5,8–78 Mtags/s
@@ -94,23 +99,24 @@ bei τ=0 zentriertes Fenster; GPU-Pfad (wgpu) noch nicht vorhanden.
 
 ## Funktionen
 
-- **Drei Ansichten:** Histogramm (Zeit nach Sync bzw. nach Referenzkanal), Korrelation g² (τ = t(Kn) − t(Kref),
-  T2 und T3) und Zählraten-Zeitverlauf; logarithmische y-Achse, Kanäle einzeln ein-/ausblendbar.
+- **Fünf Ansichten:** Histogramm (Zeit nach Sync bzw. nach Referenzkanal), Zählraten-Zeitverlauf, Korrelation g²
+  (τ = t(Kn) − t(Kref), T2 und T3), g³ (Karte, Diagonale, Schnitte) und g⁴ (τ₃-Schnitt, Diagonale);
+  Kanäle einzeln ein-/ausblendbar.
 - **T2 und T3**, Sync bei T2 als eigener Datenkanal **K0** (z. B. Herald-Detektor), Referenzkanal wählbar.
 - **Steuerung vom Handy:** Start/Stopp/Reset, Binbreite, Länge, Tempo, Akkumulieren oder gleitendes Fenster;
   ein Client steuert, weitere sehen live mit.
 - **Windows-Betrieb** mit Skripten; Zugriff im LAN oder über das Internet (Cloudflare Quick Tunnel, Zugangscode, QR-Code).
-- **Simulation** (noch ohne Geräteanbindung) durch Wiedergabe von `.ptu`-Dateien in Echtzeit; drei Demodateien im Release.
+- **Simulation** (noch ohne Geräteanbindung) durch Wiedergabe von `.ptu`-Dateien in Echtzeit; neun synthetische Demodateien (Daten-Zips im Release).
 - Server: Python/FastAPI/WebSocket, Oberfläche: uPlot, getestet mit pytest.
 
 Version: einzige Quelle `harp/__init__.py` (`__version__`), abrufbar über `/api/health`.
 
-In Version 0.1 kommen die Daten **nicht vom echten Gerät**, sondern aus einer
+In Version 1.0 kommen die Daten **nicht von einer echten Harp**, sondern aus einer
 **Messsimulation mit einer `.ptu`-Datei**, die in Echtzeit abgespielt wird.
 
 > Status: funktionsfähiger Prototyp. Die reine Python-Quelle ist vollständig getestet. Die snAPI-Quelle
 > wurde unter **Linux** mit dem offiziellen snAPI-Wheel 1.2.5 (File-Device) getestet, **unter Windows
-> noch nicht**. Die Quelle für das echte HH500-Gerät ist nur ein **Platzhalter**.
+> noch nicht**. Die Quelle für eine echte Harp ist nur ein **Platzhalter**.
 
 ---
 
@@ -336,7 +342,7 @@ gemessener Rate (statt „Sync“), Kurven in allen drei Ansichten, als Referenz
 Laser-Sync Fenster über ≈ 10 Sync-Perioden. T2-Dateien ohne Sync-Ereignisse: keine K0-Taste, Kachel „Sync“ mit
 Header-Rate. T3: unverändert (Kachel „Sync“, Histogramm = Mikrozeit nach Sync).
 
-## 7. Umstieg auf snAPI und später auf die echte HH500
+## 7. Umstieg auf snAPI und später auf eine echte Harp
 
 * **snAPI-Quelle** (`[source] kind = "snapi"` oder `--source snapi`): öffnet die PTU-Datei als snAPI-*File-Device*
   und lässt snAPI histogrammieren (`snAPI.getFileDevice()`, `histogram.setSequenceMode(Timer, …)`,
@@ -371,7 +377,7 @@ Zum Vergleich: ein TTTR-Rohdatenstrom mit 1 Mcps wären 4 MB/s.
 
 ```bat
 python -m pytest -q                                   REM Unit-/Integrationstests
-python tools\crosscheck.py data\Demo_Synthetisch_T3_Fluoreszenz_4Kanal_5min.ptu REM Gegenprobe mit ptufile/phconvert
+python tools\crosscheck.py data\meine.ptu            REM Gegenprobe mit ptufile/phconvert
 python tools\ws_client_check.py ws://127.0.0.1:8765/ws REM End-to-End gegen laufenden Server
 python tools\screenshot.py http://127.0.0.1:8765/     REM Screenshots (pip install playwright; playwright install chromium)
 ```
@@ -384,7 +390,7 @@ snAPI-Histogramm ↔ eigenes Histogramm.
 
 ## 10. Bekannte Einschränkungen (1.0)
 
-* Kein echtes Gerät; die HH500-Live-Quelle ist ein Platzhalter.
+* Keine echte Harp; die Live-Quelle `hh500` ist ein Platzhalter.
 * snAPI-Quelle unter Windows ungetestet. Unter Linux (snAPI 1.2.5) beobachtet: Öffnen einer weiteren Datei im
   selben Prozess nach `stopMeasure()` mitten in der Datei führte zu Hängern/Abstürzen → deshalb Worker-Prozess,
   der bei Dateiwechsel, „Von vorn“ und Loop neu gestartet wird (dauert ca. 1 s). Der snAPI-Prozess belegt ca. 0,9 GB RAM.
