@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from . import _core
 from .ptu import Events
 
 
@@ -34,6 +35,21 @@ def histogram_t3(ev: Events, num_channels: int, binning: int, nbins: int) -> np.
 def histogram_t2(ev: Events, num_channels: int, binning: int, nbins: int,
                  last_sync: int | None, start_channel: int = 0, first: int = 1
                  ) -> tuple[np.ndarray, int | None, bool]:
+    """T2: Start-Stopp-Histogramm – Rust-Kern, falls vorhanden (bit-identisch zu ``_histogram_t2_np``)."""
+    core = _core.CORE
+    if core is None or not 0 <= binning <= 62 or ev.time.dtype != np.int64 or ev.channel.dtype != np.int16:
+        return _histogram_t2_np(ev, num_channels, binning, nbins, last_sync, start_channel, first)
+    rows = num_channels - first + 1
+    out = np.zeros((rows, nbins), np.uint64)
+    ls, has = core.t2_hist(np.ascontiguousarray(ev.time, np.int64), np.ascontiguousarray(ev.channel, np.int16),
+                           int(num_channels), int(first), int(start_channel), int(binning), int(nbins),
+                           None if last_sync is None else int(last_sync), out)
+    return out, ls, has
+
+
+def _histogram_t2_np(ev: Events, num_channels: int, binning: int, nbins: int,
+                     last_sync: int | None, start_channel: int = 0, first: int = 1
+                     ) -> tuple[np.ndarray, int | None, bool]:
     """T2: Start-Stopp-Histogramm (Zeit seit letztem Start-Ereignis) je Kanal.
 
     start_channel 0 = Sync, sonst ein Detektorkanal (Referenzkanal als Sync-Ersatz; seine eigenen
@@ -71,6 +87,31 @@ CORR_BINS = 2048   # feste Länge des Korrelationshistogramms (symmetrisch, ±10
 def correlate(t: np.ndarray, c: np.ndarray, num_channels: int, bw: int, nbins: int,
               tail: tuple[np.ndarray, np.ndarray] | None, ref: int = 1, first: int = 1
               ) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+    """g²-Kreuzkorrelation – Rust-Kern, falls vorhanden (bit-identisch zu ``_correlate_np``, dort beschrieben)."""
+    core = _core.CORE
+    c_arr = np.asarray(c)
+    if core is None or bw <= 0 or nbins <= 0 or c_arr.dtype.kind not in "iu" or (
+            c_arr.size and (int(c_arr.min()) < -32768 or int(c_arr.max()) > 32767)):
+        return _correlate_np(t, c, num_channels, bw, nbins, tail, ref, first)
+    t = np.ascontiguousarray(t, np.int64)
+    c16 = np.ascontiguousarray(c_arr, np.int16)
+    if tail is None:
+        tail = (np.zeros(0, np.int64), np.zeros(0, np.int64))
+    tt = np.ascontiguousarray(tail[0], np.int64)
+    tc = np.ascontiguousarray(tail[1], np.int64)
+    out = np.zeros((num_channels - first + 1, nbins), np.uint64)
+    r = core.corr_hist(t, c16, tt, tc, int(num_channels), int(first), int(ref), int(bw), int(nbins), out)
+    if r is None:
+        return out, tail
+    k_tail, i_cur = r
+    ct, cc = t[i_cur:], np.asarray(c_arr[i_cur:], np.int64)
+    ph = (cc >= first) & (cc <= num_channels)
+    return out, (np.concatenate([tt[k_tail:], ct[ph]]), np.concatenate([tc[k_tail:], cc[ph]]))
+
+
+def _correlate_np(t: np.ndarray, c: np.ndarray, num_channels: int, bw: int, nbins: int,
+                  tail: tuple[np.ndarray, np.ndarray] | None, ref: int = 1, first: int = 1
+                  ) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
     """Kreuzkorrelation (Zeitdifferenz-Histogramm) τ = t(Kj) − t(Kref) für alle j ≠ ref.
 
     ``t``: aufsteigend sortierte absolute Zeiten (ganzzahlige Einheiten, T2: Makrozeit-Einheiten,
@@ -134,6 +175,16 @@ def t3_abs_time_ps(ev: Events, period_ps: float, res_ps: float) -> tuple[np.ndar
 
 
 def counts_per_channel(ev: Events, num_channels: int, first: int = 1) -> np.ndarray:
+    core = _core.CORE
+    rows = num_channels - first + 1
+    if core is not None and len(ev) and ev.channel.dtype == np.int16:
+        out = np.zeros(rows, np.int64)
+        core.chan_counts(np.ascontiguousarray(ev.channel), int(num_channels), int(first), out)
+        return out
+    return _counts_per_channel_np(ev, num_channels, first)
+
+
+def _counts_per_channel_np(ev: Events, num_channels: int, first: int = 1) -> np.ndarray:
     rows = num_channels - first + 1
     if len(ev) == 0:
         return np.zeros(rows, np.int64)

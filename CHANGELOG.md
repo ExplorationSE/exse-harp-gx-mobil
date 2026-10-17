@@ -1,5 +1,39 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.3.0-dev – 17.10.2026 (Testversion)
+
+Schnellere CPU-Pfade, Anlass: auf dem Laptop von Herrn Eilers zeigte die Info-Zeile bei `Thermisch_cw`
+(g³/g⁴ ±900 ns, Koinzidenzfenster 50 ns, g²-Bin 512 ps, 4 Kanäle à ≈ 450 kcps) „Server 88,34 ms“, 5,5 fps,
+45 Mtags/s und 167,7 ms Latenz.
+
+- **Wo die Zeit hinging** (neu: `tools/profile_frame.py`, ein Live-Frame offline nachgestellt; Box, 8 Threads,
+  150-ms-Frames bei 1×, ≈ 271 000 Ereignisse je Frame): „Server … ms“ misst die Server-Schleife (Datei lesen,
+  Histogramm, g², Zählraten), **nicht** die g³/g⁴-Kerne – die laufen im eigenen GX-Prozess (≈ 12 ms je Frame).
+  Von 35,5 ms Server-Zeit entfielen 20,8 ms auf die g²-Kreuzkorrelation zum Referenzkanal (NumPy, alle Paare über
+  Hilfsfelder), 8,0 ms auf das T2-Start-Stopp-Histogramm, 4,2 ms auf das PTU-Dekodieren und 1,1 ms auf die Zählraten.
+- **Server-Pfad im Rust-Kern** (`rust/harp_gx_core/src/stream.rs`, `harp/_core.py`): PTU-Dekodierung (alle
+  Record-Typen), T2-Histogramm, g²-Korrelation (Zwei-Zeiger-Verfahren, parallel, Frame-übergreifender Tail wie
+  bisher) und Zählraten je in einem Durchlauf ohne Zwischenfelder, ohne GIL. **Bit-identisch** zu den
+  NumPy-Fassungen, die als Rückfall bleiben (`HARP_STREAM_NUMPY=1` erzwingt sie; ohne `harp_gx_core` automatisch).
+  Neue Tests `tests/test_stream_core.py`: Zufallsdaten mit Randfällen (alle Record-Typen, Gleichzeitigkeit, Kanäle
+  außerhalb, Lücken > W, leere Frames, ungerade Binzahl) und alle 9 Demodateien Frame für Frame.
+- **g³/g⁴-Kerne** (CPU): Bins der c-/d-Marken je Start nur einmal berechnet statt je Paar/Tripel, lokale
+  u32-Histogramme je Thread (halber Cache-Bedarf, vor einem möglichen Überlauf exakt in i64 umgebucht, Test mit
+  gesenkter Grenze), Starts ohne Partner früh übersprungen. Ergebnisse unverändert.
+- **g³/g⁴-Frame**: zlib-Stufe 1 statt 6 (≈ 3× schneller, höchstens ≈ 1 % größer).
+- **Messung Box, vorher → nachher:**
+  - Server-Schleife (`tools/profile_frame.py`, Median): 35,5 → 5,6 ms (×6,3); g² 20,8 → 1,6 ms,
+    T2-Histogramm 8,0 → 1,9 ms, Dekodieren 4,2 → 1,1 ms, Zählraten 1,1 → 0,2 ms.
+  - Echter Server mit WebSocket-Client, „Server … ms“: 38,9 → 7,0 ms (×5,6).
+  - GX-Worker je Frame: 12,6 → 7,9 ms (Kodierung g³+g⁴ 4,9 → 1,6 ms, g⁴ 1,4 → 1,0 ms, g³ 1,05 → 0,75 ms).
+  - `tools/bench_engines.py --only Thermisch_cw`, Rust 8 Threads: 38,1 → 42,1 Mtags/s, Frame 6,85 → 6,33 ms.
+  - Reine Kerne (`tools`-Fälle wie `bench_gpu.py`, alter gegen neuen Kern, Median aus 3 Läufen à bestes von 25,
+    Rust 8 Threads, Mtags/s): g³ ±1 µs R·T≈5 65 → 85 (+32 %), g³ ±900 ns bei 450 kcps 152 → 186 (+23 %),
+    g⁴ ±900 ns bei 450 kcps 78 → 93 (+18 %), g⁴ ±250 ns 101 → 118 (+17 %), g⁴ Live-Frame thermisch 128 → 158
+    (+23 %), g⁴ 20 Mcps 148 → 160 (+8 %), g³ 20 Mcps 211 → 224 (+6 %), schmale Fenster bei 2,5 Mcps +1–2 %.
+- Version 1.3.0-dev (Python), Rust-Kern 1.3.0-dev / Wheel 1.3.0.dev0; Service-Worker-Cache
+  `exse-harp-gx-mobil-1.3.0-dev-r1`. CI prüft den Server-Pfad im Wheel (Windows, Linux, macOS).
+
 ## 1.2.0 – 17.10.2026
 
 Veröffentlichung des GPU-Pfads (getestet als 1.2.0-dev).

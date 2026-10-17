@@ -14,6 +14,7 @@ use rayon::prelude::*;
 
 #[cfg(feature = "gpu")]
 mod gpu;
+mod stream;
 
 fn ro<'a>(b: &'a PyBuffer<i64>) -> PyResult<&'a [i64]> {
     if !b.is_c_contiguous() {
@@ -81,12 +82,19 @@ fn g2_core(ta: &[i64], tb: &[i64], i0: usize, i1: usize, w: i64, bw: i64, nb: us
 }
 
 fn g3_core(ta: &[i64], tb: &[i64], tc: &[i64], i0: usize, i1: usize, w: i64, bw: i64, nb: usize, out: &mut [i64]) {
-    let parts: Vec<Vec<i64>> = blocks(i0, i1)
+    // Bins der c-Marken je Start einmal berechnen (statt je (b, c)-Paar): bei breitem Fenster / hohem R·T
+    // ist die Division sonst der teuerste Teil der innersten Schleife. Lokales Histogramm u32 (halber
+    // Cache-Bedarf), vor einem möglichen Überlauf in i64 umgebucht – Ergebnis unverändert.
+    let parts: Vec<(Vec<u32>, Vec<i64>)> = blocks(i0, i1)
         .into_par_iter()
         .map(|(s0, s1)| {
-            let mut h = vec![0i64; nb * nb];
+            let mut h = vec![0u32; nb * nb];
+            let mut acc: Vec<i64> = Vec::new();
+            let cap = room_max();
+            let mut room: u64 = cap;
             let mut jb = lower(tb, ta[s0] - w);
             let mut jc = lower(tc, ta[s0] - w);
+            let mut ci: Vec<u32> = Vec::new();
             for &t in &ta[s0..s1] {
                 while jb < tb.len() && tb[jb] < t - w {
                     jb += 1;
@@ -94,37 +102,98 @@ fn g3_core(ta: &[i64], tb: &[i64], tc: &[i64], i0: usize, i1: usize, w: i64, bw:
                 while jc < tc.len() && tc[jc] < t - w {
                     jc += 1;
                 }
-                let mut kc_end = jc;
-                while kc_end < tc.len() && tc[kc_end] < t + w {
-                    kc_end += 1;
+                if jb >= tb.len() || tb[jb] >= t + w {
+                    continue;   // keine b-Marke im Fenster
                 }
-                let cs = &tc[jc..kc_end];
+                ci.clear();
+                let mut m = jc;
+                while m < tc.len() && tc[m] < t + w {
+                    ci.push(((tc[m] - t + w) / bw) as u32);
+                    m += 1;
+                }
+                if ci.is_empty() {
+                    continue;
+                }
+                let need = ci.len() as u64;   // Zuwächse je b-Marke
                 let mut j = jb;
                 while j < tb.len() && tb[j] < t + w {
-                    let row = &mut h[((tb[j] - t + w) / bw) as usize * nb..][..nb];
-                    for &x in cs {
-                        row[((x - t + w) / bw) as usize] += 1;
+                    let r = ((tb[j] - t + w) / bw) as usize * nb;
+                    if need > room {
+                        flush(&mut h, &mut acc);
+                        room = cap;
+                    }
+                    if need > cap {   // (theoretisch) eine Zeile allein zu groß: direkt in i64
+                        for &y in &ci {
+                            acc[r + y as usize] += 1;
+                        }
+                    } else {
+                        room -= need;
+                        let row = &mut h[r..r + nb];
+                        for &y in &ci {
+                            row[y as usize] += 1;
+                        }
                     }
                     j += 1;
                 }
             }
-            h
+            (h, acc)
         })
         .collect();
-    reduce(parts, out);
+    reduce32(parts, out);
+}
+
+static ROOM_MAX: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u32::MAX as u64);
+
+fn room_max() -> u64 {
+    ROOM_MAX.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Nur für Tests: Umbuchungsgrenze der lokalen u32-Histogramme senken (0 = Standard u32::MAX).
+#[pyfunction]
+fn _set_room_max(n: u64) {
+    let v = if n == 0 || n > u32::MAX as u64 { u32::MAX as u64 } else { n };
+    ROOM_MAX.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Lokales u32-Histogramm in den i64-Speicher umbuchen (vor möglichem Überlauf).
+fn flush(h: &mut [u32], acc: &mut Vec<i64>) {
+    if acc.is_empty() {
+        acc.resize(h.len(), 0);
+    }
+    for (a, v) in acc.iter_mut().zip(h.iter_mut()) {
+        *a += *v as i64;
+        *v = 0;
+    }
+}
+
+/// Teilergebnisse (u32-Histogramm + ggf. umgebuchter i64-Teil) ganzzahlig in out summieren.
+fn reduce32(parts: Vec<(Vec<u32>, Vec<i64>)>, out: &mut [i64]) {
+    for (h, acc) in parts {
+        for (o, v) in out.iter_mut().zip(h) {
+            *o += v as i64;
+        }
+        for (o, v) in out.iter_mut().zip(acc) {
+            *o += v;
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn g4_core(ta: &[i64], tb: &[i64], tc: &[i64], td: &[i64], i0: usize, i1: usize, w: i64, bw: i64, nb: usize,
            out: &mut [i64]) {
-    let parts: Vec<Vec<i64>> = blocks(i0, i1)
+    // wie g3_core: Bins von c und d je Start vorab, lokales u32-Histogramm mit Umbuchung vor Überlauf
+    let parts: Vec<(Vec<u32>, Vec<i64>)> = blocks(i0, i1)
         .into_par_iter()
         .map(|(s0, s1)| {
-            let mut h = vec![0i64; nb * nb * nb];
+            let mut h = vec![0u32; nb * nb * nb];
+            let mut acc: Vec<i64> = Vec::new();
+            let cap = room_max();
+            let mut room: u64 = cap;
             let mut jb = lower(tb, ta[s0] - w);
             let mut jc = lower(tc, ta[s0] - w);
             let mut jd = lower(td, ta[s0] - w);
-            let mut zi: Vec<usize> = Vec::new();
+            let mut yi: Vec<u32> = Vec::new();
+            let mut zi: Vec<u32> = Vec::new();
             for &t in &ta[s0..s1] {
                 while jb < tb.len() && tb[jb] < t - w {
                     jb += 1;
@@ -135,36 +204,54 @@ fn g4_core(ta: &[i64], tb: &[i64], tc: &[i64], td: &[i64], i0: usize, i1: usize,
                 while jd < td.len() && td[jd] < t - w {
                     jd += 1;
                 }
-                let mut ce = jc;
-                while ce < tc.len() && tc[ce] < t + w {
-                    ce += 1;
+                if jb >= tb.len() || tb[jb] >= t + w || jc >= tc.len() || tc[jc] >= t + w {
+                    continue;   // keine b- oder c-Marke im Fenster
                 }
                 zi.clear();
                 let mut m = jd;
                 while m < td.len() && td[m] < t + w {
-                    zi.push(((td[m] - t + w) / bw) as usize);
+                    zi.push(((td[m] - t + w) / bw) as u32);
                     m += 1;
                 }
-                if zi.is_empty() || ce == jc {
-                    continue;   // keine Beiträge (wie Numba: innere Schleifen leer)
+                if zi.is_empty() {
+                    continue;
                 }
+                yi.clear();
+                let mut m = jc;
+                while m < tc.len() && tc[m] < t + w {
+                    yi.push(((tc[m] - t + w) / bw) as u32);
+                    m += 1;
+                }
+                let need = (yi.len() * zi.len()) as u64;   // Zuwächse je b-Marke
                 let mut j = jb;
                 while j < tb.len() && tb[j] < t + w {
-                    let x = ((tb[j] - t + w) / bw) as usize;
-                    for &yc in &tc[jc..ce] {
-                        let base = (x * nb + ((yc - t + w) / bw) as usize) * nb;
-                        let cell = &mut h[base..base + nb];
-                        for &z in &zi {
-                            cell[z] += 1;
+                    let xb = ((tb[j] - t + w) / bw) as usize * nb;
+                    if need > room {
+                        flush(&mut h, &mut acc);
+                        room = cap;
+                    }
+                    if need > cap {   // (theoretisch) eine Zeile allein zu groß: direkt in i64
+                        for &y in &yi {
+                            for &z in &zi {
+                                acc[(xb + y as usize) * nb + z as usize] += 1;
+                            }
+                        }
+                    } else {
+                        room -= need;
+                        for &y in &yi {
+                            let cell = &mut h[(xb + y as usize) * nb..][..nb];
+                            for &z in &zi {
+                                cell[z as usize] += 1;
+                            }
                         }
                     }
                     j += 1;
                 }
             }
-            h
+            (h, acc)
         })
         .collect();
-    reduce(parts, out);
+    reduce32(parts, out);
 }
 
 #[pyfunction]
@@ -555,6 +642,11 @@ fn harp_gx_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(split_channels, m)?)?;
     m.add_function(wrap_pyfunction!(init_threads, m)?)?;
     m.add_function(wrap_pyfunction!(n_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(_set_room_max, m)?)?;
+    m.add_function(wrap_pyfunction!(stream::ptu_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(stream::t2_hist, m)?)?;
+    m.add_function(wrap_pyfunction!(stream::chan_counts, m)?)?;
+    m.add_function(wrap_pyfunction!(stream::corr_hist, m)?)?;
     m.add_function(wrap_pyfunction!(gpu_compiled, m)?)?;
     m.add_function(wrap_pyfunction!(gpu_adapters, m)?)?;
     m.add_function(wrap_pyfunction!(gpu_init, m)?)?;

@@ -115,6 +115,13 @@ lauffähig über DirectX 12 und Vulkan (Windows, auch Intel-iGPU) bzw. Metal.
   8 Threads → die Automatik behält dort die CPU. Lohnend erst mit einer deutlich stärkeren (diskreten) Grafik.
 - Ohne GPU-Pfad bauen: `maturin build --release --no-default-features -m rust/harp_gx_core/Cargo.toml`.
 
+**1.3.0-dev – schnellere Server-Schleife:** „Server … ms“ in der Info-Zeile ist die Zeit der Server-Schleife je Frame
+(PTU dekodieren, Histogramm, g²-Korrelation, Zählraten), nicht die der g³/g⁴-Kerne (eigener GX-Prozess).
+Diese Schritte rechnet jetzt der Rust-Kern (`src/stream.rs`) in einem Durchlauf, bit-identisch zu NumPy
+(Rückfall ohne Kern oder mit `HARP_STREAM_NUMPY=1`). Box, `Thermisch_cw` bei 1×: 35,5 → 5,6 ms je Frame.
+Die g³/g⁴-CPU-Kerne sind bei breitem Fenster / hohem R·T 17–32 % schneller. Aufschlüsselung je Frame:
+`python tools/profile_frame.py [Datei] [--refresh-ms 150] [--corr-binning 9]`.
+
 **0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
 im g² (FWHM ≥ 50 ns) gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach
 Statistik gewählt (≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns.

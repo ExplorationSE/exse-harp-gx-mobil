@@ -43,7 +43,7 @@ def encode(header: dict, arrays: dict[str, np.ndarray]) -> bytes:
         off += len(b)
     header = dict(header, arrays=meta, enc="log16", log_lo=LOG_LO, log_span=LOG_SPAN)
     h = json.dumps(header, separators=(",", ":"), default=_json).encode()
-    body = zlib.compress(b"".join(parts), 6)
+    body = zlib.compress(b"".join(parts), 1)   # Stufe 1: ~3× schneller als 6, kaum größer
     return b"GXF1" + struct.pack("<I", len(h)) + h + body
 
 

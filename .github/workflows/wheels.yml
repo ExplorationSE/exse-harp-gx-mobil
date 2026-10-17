@@ -10,7 +10,8 @@ on:
   push:
     tags: ["v*"]
     branches: [main]
-    paths: ["rust/**", "harp/gx/**", "tests/test_gx_*.py", ".github/workflows/wheels.yml"]
+    paths: ["rust/**", "harp/gx/**", "harp/_core.py", "harp/ptu.py", "harp/histogram.py", "tests/test_gx_*.py",
+            "tests/test_stream_core.py", ".github/workflows/wheels.yml"]
   pull_request:
     paths: ["rust/**", ".github/workflows/wheels.yml"]
 
@@ -75,14 +76,15 @@ jobs:
         run: |
           python -c "import harp_gx_core as r; print('harp_gx_core', r.__version__, r.n_threads(), 'Threads')"
           python -c "from harp.gx import kernels as K; i = K.info(); print(i); assert i['backend'] == 'rust', i"
+          python -c "from harp import _core; print('Server-Pfad Rust:', _core.CORE); assert _core.CORE is not None"
       - name: Ohne GPU-Gerät startbar (Automatik, nur echte Grafikchips)
         shell: bash
         run: |
           python -c "import harp_gx_core as r; print('GPU gebaut:', r.gpu_compiled()); print(r.gpu_adapters())"
           python -c "from harp.gx import kernels as K; print(K.warmup(), K.GPU_STATE, K.active_backend())"
           HARP_GX_ENGINE=gpu python -c "from harp.gx import kernels as K; K.warmup(); print(K.GPU_STATE, '|', K.FALLBACK_NOTE)"
-      - name: Gleichheit Rust = Numba = NumPy, Rückfall
-        run: python -m pytest -q tests/test_gx_rust.py tests/test_gx_engine.py
+      - name: Gleichheit Rust = Numba = NumPy, Rückfall; Server-Pfad Rust = NumPy
+        run: python -m pytest -q tests/test_gx_rust.py tests/test_gx_engine.py tests/test_stream_core.py
       - name: GPU-Pfad = Rust = gn.py (Software-Adapter; ohne Adapter übersprungen)
         run: python -m pytest -q -rs tests/test_gx_gpu.py
 

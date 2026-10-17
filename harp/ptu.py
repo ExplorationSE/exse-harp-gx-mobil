@@ -270,6 +270,28 @@ class StreamDecoder:
         rec = np.asarray(rec, dtype=np.uint32)
         if rec.size == 0:
             return Events.empty()
+        from . import _core
+        if _core.CORE is not None:
+            return self._decode_rust(_core.CORE, rec)
+        return self._decode_np(rec)
+
+    def _wrap(self) -> int:
+        if self.family == "pt":
+            return T3_WRAP_PT if self.mode == "T3" else T2_WRAP_PT
+        if self.mode == "T3":
+            return T3_WRAP_H
+        return T2_WRAP_H1 if self.family == "h1" else T2_WRAP_H2
+
+    def _decode_rust(self, core, rec: np.ndarray) -> Events:
+        """Ein Durchlauf im Rust-Kern (bit-identisch zu ``_decode_np``)."""
+        rec = np.ascontiguousarray(rec)
+        n = rec.size
+        t, c, d = np.empty(n, np.int64), np.empty(n, np.int16), np.empty(n, np.int32)
+        fam = {"pt": 0, "h1": 1}.get(self.family, 2)
+        k, self.ofl, markers = core.ptu_decode(rec, fam, self.mode == "T3", self._wrap(), int(self.ofl), t, c, d)
+        return Events(t[:k], c[:k], d[:k], int(markers))
+
+    def _decode_np(self, rec: np.ndarray) -> Events:
         if self.family == "pt":
             return self._decode_pt(rec)
         return self._decode_h(rec)

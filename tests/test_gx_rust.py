@@ -218,3 +218,21 @@ def test_split_channels_equal_and_fallback():
     if K.HAVE_RUST:   # falsche Ausgabegrößen → ValueError statt Absturz
         with pytest.raises(ValueError):
             K._rs.split_channels(t, ch, [-1, 0], [np.empty(3, np.int64)])
+
+
+@need_rust
+@pytest.mark.parametrize("cap", [1, 7, 1000])
+def test_rust_u32_local_hist_flush_exact(cap):
+    """Lokale u32-Histogramme (seit 1.3.0-dev) werden vor Überlauf umgebucht – mit gesenkter Grenze geprüft,
+    auch der Pfad „ein Start allein zu groß“ (cap = 1)."""
+    import harp_gx_core as rs
+    ts = _rand(seed=5, n=20_000, span=10**9)
+    W, NB = 200_000, 33
+    BW = -(-2 * W // NB)
+    r3, r4 = K.g3_np(*ts[:3], 0, 20_000, W, BW, NB), K.g4_np(*ts, 0, 20_000, W, BW, NB)
+    try:
+        rs._set_room_max(cap)
+        assert np.array_equal(K.g3_hist(*ts[:3], 0, 20_000, W, BW, NB, "rust"), r3)
+        assert np.array_equal(K.g4_hist(*ts, 0, 20_000, W, BW, NB, "rust"), r4)
+    finally:
+        rs._set_room_max(0)
