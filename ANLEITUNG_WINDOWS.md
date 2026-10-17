@@ -79,10 +79,11 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
    das Programm mit Numba weiter – genauso richtig, nur etwas langsamer. Der aktive Kern steht in der App in der
    Info-Zeile „Rechenkern“, z. B. „Rust (rayon) · 4 Threads · … Mtags/s“.
    Ab Version 1.2 enthält der Rust-Rechenkern zusätzlich einen GPU-Pfad (DirectX 12 / Vulkan, auch für
-   Intel-Grafik). Beim Start wird die Grafik geprüft und mit der CPU verglichen; die GPU rechnet nur, wenn sie für
-   die aktuelle Messung schneller ist. Dann steht dort z. B. „GPU (wgpu, Intel(R) …) · … Mtags/s“,
+   Intel- und AMD-Grafik). Beim Start wird die Grafik geprüft und mit der CPU verglichen; die GPU rechnet nur, wenn sie für
+   die aktuelle Messung schneller ist. Dann steht dort z. B. „GPU (wgpu, AMD Radeon(TM) Graphics) · … Mtags/s“,
    sonst wie bisher der CPU-Kern. Die Ergebnisse sind in beiden Fällen identisch. Ohne passende Grafik rechnet die
-   CPU – es ist nichts einzustellen.
+   CPU – es ist nichts einzustellen. Auf integrierter Grafik ist die CPU meist schneller; dann steht am Ende
+   der Zeile „GPU … vorhanden, CPU schneller“ – das ist so richtig.
 4. Am Ende steht „Fertig.“ – Fenster mit einer Taste schließen.
 
 ## 5. Online starten: `start_online.bat`

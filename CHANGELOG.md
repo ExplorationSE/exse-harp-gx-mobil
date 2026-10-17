@@ -1,8 +1,22 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
-## 1.2.0-dev – 17.10.2026
+## 1.2.0 – 17.10.2026
 
-GPU-Beschleunigung (Testversion, noch kein Release).
+Veröffentlichung des GPU-Pfads (getestet als 1.2.0-dev).
+
+- **Messung auf dem Laptop von Herrn Eilers** (integrierte AMD Radeon(TM) Graphics, DirectX 12, Treiber
+  32.0.21030.29002; Rust mit 8 Threads), `tools/bench_gpu.py`, CPU gegen GPU in Mtags/s, alle Ergebnisse gleich:
+  g² 2,5 Mcps ±50 ns 478 / 61 · g³ 2,5 Mcps ±25 ns 226 / 43 · g⁴ 2,5 Mcps ±25 ns 175 / 36 · g³ 20 Mcps 191 / 39 ·
+  g⁴ 20 Mcps 116 / 26 · g³ ±1 µs (R·T≈5) 28 / 18,7 · g⁴ ±250 ns 56 / 19,5 · g⁴ Live-Frame thermisch 56,5 / 29.
+- **Ergebnis:** Der GPU-Pfad rechnet exakt (bitgleich zur CPU), ist auf dieser integrierten Grafik aber in allen
+  Fällen langsamer als der Rust-Kern auf der CPU (am nächsten bei breitem Fenster, ×0,67). Die Automatik behält
+  deshalb richtig die CPU; die Info-Zeile zeigt „GPU AMD Radeon(TM) Graphics vorhanden, CPU schneller“.
+  Eine schnellere (diskrete) Grafikkarte nutzt das Programm automatisch, sobald sie messbar schneller ist.
+- Version 1.2.0 in Python-Paket, Rust-Kern (Cargo/pyproject), App-Fußzeile und Anleitung (PDF);
+  Service-Worker-Cache `exse-harp-gx-mobil-1.2.0-r1`. Das Programm-Zip enthält das Windows-Wheel mit GPU-Pfad
+  unter `wheels\`.
+
+GPU-Pfad (seit 1.2.0-dev):
 
 - **GPU-Pfad im Rust-Kern** (`rust/harp_gx_core/src/gpu.rs`, Shader `gx.wgsl`, cargo-Feature `gpu`, Standard an):
   - wgpu 25 mit DirectX 12, Vulkan und Metal; Gerätewahl diskret > integriert > virtuell, Software-Adapter nur mit
@@ -25,8 +39,7 @@ GPU-Beschleunigung (Testversion, noch kein Release).
 - `tools/bench_gpu.py` (Kerne GPU gegen CPU), `tools/bench_engines.py --engines rust,gpu,auto`.
 - CI: Wheels werden auch bei Änderungen an `main` gebaut; Windows-Test auf WARP, Linux auf lavapipe; Import und
   Start ohne GPU geprüft.
-- Version 1.2.0-dev (Python), Rust-Kern 1.2.0-dev / Wheel 1.2.0.dev0; Service-Worker-Cache
-  `exse-harp-gx-mobil-1.2.0-dev-r1`.
+- Testversion 1.2.0-dev (Python), Rust-Kern 1.2.0-dev / Wheel 1.2.0.dev0.
 
 ## 1.1.0 – 16.10.2026
 

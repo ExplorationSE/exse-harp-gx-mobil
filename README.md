@@ -94,7 +94,7 @@ Die Reihenfolge ist Rust > Numba > NumPy mit automatischem Rückfall; der aktive
   danach `pip install wheelhouse/*.whl`.
 - Vergleich: `python tools/bench_engines.py --threads 1,2,4,8`.
 
-**1.2.0-dev – GPU-Pfad (wgpu):** Der Rust-Kern enthält Compute-Shader (WGSL) für die g²/g³/g⁴-Histogramme,
+**1.2.0 – GPU-Pfad (wgpu):** Der Rust-Kern enthält Compute-Shader (WGSL) für die g²/g³/g⁴-Histogramme,
 lauffähig über DirectX 12 und Vulkan (Windows, auch Intel-iGPU) bzw. Metal.
 - Gleiche Rechenvorschrift wie die CPU: Start-Marken in Blöcken zu ≤ 256 mit Überlapp ±W; Zeiten je Block als
   32-bit-Relativzeiten (Basis = erste Start-Marke − W, Spannweite < 2³⁰ ps, Fenster 2W ≤ 2³⁰ ps); eine
@@ -111,6 +111,8 @@ lauffähig über DirectX 12 und Vulkan (Windows, auch Intel-iGPU) bzw. Metal.
 - Umgebungsvariablen: `HARP_GX_ENGINE=gpu` (Histogramme immer auf der GPU), `HARP_GX_NO_GPU=1` (aus),
   `HARP_GX_GPU_BACKEND=dx12|vulkan`, `HARP_GX_GPU_ALLOW_CPU=1` (Software-Adapter, nur für Tests).
 - Messungen: `python tools/bench_gpu.py` (reine Kerne) und `python tools/bench_engines.py --engines rust,gpu,auto`.
+- Gemessen auf einer integrierten AMD Radeon (DirectX 12): exakt, aber 0,13–0,67× so schnell wie der Rust-Kern mit
+  8 Threads → die Automatik behält dort die CPU. Lohnend erst mit einer deutlich stärkeren (diskreten) Grafik.
 - Ohne GPU-Pfad bauen: `maturin build --release --no-default-features -m rust/harp_gx_core/Cargo.toml`.
 
 **0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
@@ -123,7 +125,7 @@ Die Binär-Frames sind bei gefüllten Karten größer: thermisch cw ≈ 35 kB, L
 
 Einschränkungen: Karten werden nur aufsummiert (kein Abklingen); snAPI-Quelle liefert keine Einzelereignisse
 (kein g³/g⁴); Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); Kalibrierung braucht ein Merkmal im g² (beim kohärenten Laser keine); Kacheln nutzen ein festes,
-bei τ=0 zentriertes Fenster; GPU-Pfad bisher nur auf Software-Adaptern geprüft (Messung auf echter Intel-Grafik steht aus).
+bei τ=0 zentriertes Fenster; GPU-Pfad auf integrierter Grafik (AMD Radeon gemessen) langsamer als die CPU – dort rechnet automatisch die CPU.
 
 ## Funktionen
 
