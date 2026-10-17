@@ -1,115 +1,85 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
-## 1.3.0-dev3 – 17.10.2026 (Testversion, Service-Worker-Cache `exse-harp-gx-mobil-1.3.0-dev-r3`)
+## 1.3.0 – 17.10.2026
 
-Zwei Fehler aus dem Test von 1.3.0-dev2 (Herr Eilers, Laptop, `Thermisch_cw`, K1·K2, „Datei wiederholen“).
+Schnellere Server-Schleife, kurze g³/g⁴-Latenz und zwei behobene Anzeigefehler. Getestet als 1.3.0-dev, -dev2 und
+-dev3 auf dem Laptop von Herrn Eilers. Service-Worker-Cache `exse-harp-gx-mobil-1.3.0-r1`; Rust-Kern und Wheel 1.3.0.
+Alle Ergebnisse sind bit-identisch mit 1.2.0.
 
-- **g²-Ansicht: „–“ und „0.0 s“ nach jedem Datei-Umlauf.** Ursache: Seit dev2 liefert der GX-Worker sofort ein
-  Ergebnis. Direkt nach dem Reset beim Umlauf war das ein *leeres* Ergebnis (T = 0, keine Kacheln, leere g³/g⁴-Karten).
-  Die g²-Ansicht bekam den GX-Kopf zudem nur mit ≈ 2 Hz und zeigte dieses leere Ergebnis dann bis zu ≈ 0,6 s lang.
-  Bei der 3-s-Demodatei war das alle 3 s der Fall: große Kachel „–“, Hinweis „… · 0.0 s“. Im selben Moment war die
-  Kurve auf einen Frame (0,15 s) Daten zurückgesetzt.
-  - Behebung: Der Worker hält ein leeres Ergebnis nach Reset, Neukalibrierung oder neuer Geometrie zurück, bis die
-    ersten Daten gerechnet sind (höchstens 0,4 s, `HOLD_EMPTY_S`). Danach wird es doch gesendet, z. B. wenn gestoppt.
-  - Die g²-Ansicht bekommt den Kopf mit Kacheln und Messzeit bei *jedem* Ergebnis (≈ 1,5 kB, ≈ 10 kB/s statt ≈ 3 kB/s)
-    und beim Wechsel in die Ansicht sofort.
-  - Die Kachel zeigt „sammelt Daten …“ statt „–“, solange noch keine Kacheln da sind.
-  - Histogramm und g²-Kurve werden getrennt gezeichnet: Ein Fehler im einen verhindert das andere nicht mehr.
-  - Ein später entpackter, älterer GX-Frame überschreibt keinen neueren mehr.
-  - Schlanke Frames behalten `"corr": null` (Quelle ohne Korrelation).
-  - Geprüft: Schlanke Frames lassen nur `hist` und `corr` weg. Zählraten, Messzeit, Kanäle, Infozeile, Kalibrierung und
-    Laufzeiten bleiben drin; das sichert ein Test ab.
-- **Auswahlfelder: erste Änderung zeigte die erste Option** („Bereich g³/g⁴“ 2,5 µs → Anzeige 5 ns,
-  „Koinzidenzfenster“ 10 ns → 100 ps).
-  - Ursache: Nach dem Start steht der automatisch gewählte Wert (z. B. ±930 ns) zusätzlich in der Liste. Die
-    Statusmeldung nach der Änderung baut die Liste neu auf, ohne ihn. Weil der Fokus noch im Feld war, wurde der Wert
-    absichtlich nicht gesetzt. Das neu aufgebaute Feld zeigte daher die erste Option, während der Server den gewählten
-    Wert hatte. Eine weitere Änderung konnte dann den falschen Wert schicken.
-  - Behebung: Alle Auswahlfelder zeigen immer den Server-Wert. Nur eine eigene, noch unbestätigte Auswahl bleibt bis
-    zur Bestätigung stehen (höchstens 3 s). Betroffen waren auch Binbreite, Binbreite g², Referenzkanal und PTU-Datei,
-    sobald deren Liste neu aufgebaut wurde.
-- **Tests:**
-  - `tests/test_views.py`: Jede Ansicht bekommt, was sie braucht – fünf Clients gleichzeitig. Ende zu Ende mit echtem
-    GX-Worker über alle 20 Ansichtswechsel und mehrere Datei-Umläufe; nie ein leeres GX-Ergebnis.
-  - `tests/test_browser_smoke.py` mit `tools/browser_smoke.py` im Headless-Chromium, Desktop und 390 px:
-    - alle 20 Wechsel, nach Datei-Umlauf, zwei Clients mit Zuschauer-Modus;
-    - Daten kommen an und summieren sich, Kacheln, Hinweise und Infozeile sind gefüllt;
-    - erste Änderung jedes Auswahlfelds.
-  - Der Browser-Test wird ohne Playwright übersprungen, auch in der CI.
-- Infozeile: „… fps“ und „… kB/s“ statt „0.0“ in der ersten Sekunde.
+**Gemessen auf dem Laptop von Herrn Eilers** (`Thermisch_cw`, ±900 ns, Fenster 50 ns, 150-ms-Frames, Rust 8 Threads):
 
-## 1.3.0-dev2 – 17.10.2026 (Testversion, Service-Worker-Cache `exse-harp-gx-mobil-1.3.0-dev-r2`)
+| | 1.2.0 | 1.3.0 |
+|---|---:|---:|
+| „Server … ms“ je Frame | 88,3 ms | 12,8 ms |
+| g³/g⁴-Latenz bis zum Absenden | ≈ 300 ms¹ | ≈ 35 ms + Netz (≈ 15–25 ms) |
+| g³/g⁴-Aktualisierung | ≈ 1,6 Hz² | ≈ 6 Hz |
 
-Kürzere g³/g⁴-Latenz. Anlass: Herr Eilers sah mit 1.3.0-dev (Laptop, Browser auf demselben Gerät,
-`Thermisch_cw`, ±900 ns, 50 ns, Ansicht g⁴) „Server 12,79 ms“, 6,4 fps und „Latenz 160,4 ms · 44,8 kB/Frame“.
+¹ Angezeigt wurden 168 ms; die alte Anzeige ließ die Wartezeit bis zum Senden weg. Gesamt auf der Box gemessen:
+median 306 ms. ² 0,5-s-Sendetakt gegen 150-ms-Schleife, auf der Box gemessen.
 
-- **Wo die Latenz entstand** (neu: `tools/latency_gx.py`, echter Server mit WebSocket-Client, alle Zeitpunkte aus
-  `time.monotonic()`; Box, Ansicht g⁴, Median / p90 / max):
-  - GX-Rechnung selbst: Server-Frame → Worker ≈ 10 ms, `process` ≈ 7 ms, Normierung + Kodierung ≈ 2 ms.
-  - Abholen: Die Server-Schleife sah nur einmal je Frame nach, also erst im nächsten Durchlauf → ≈ 150 ms.
-  - Sendetakt 0,5 s gegen 150-ms-Schleife → Frames nur alle 600–900 ms (1,6 Hz), Wartezeit 150 / 303 / 454 ms.
-  - Gesamt (Ende der Messzeit → beim Client): 306 / 459 / 611 ms. Die alte Anzeige „Latenz“ (≈ 154 ms) zählte nur
-    bis zum Abholen, nicht die Wartezeit bis zum Senden.
-- **Push statt Abfragen:** Ein Lese-Thread holt jedes Ergebnis sofort aus der Worker-Queue und weckt die
-  Ereignisschleife; der Server schickt es gleich weiter. Der Worker liefert nach jedem gerechneten Frame ein
-  Ergebnis (höchstens 20/s) und wartet nicht mehr pauschal 0,1 s, wenn eines fällig ist.
-- **Kodierung im Worker:** Die Karten g³/g⁴ werden im Worker quantisiert und komprimiert (dieselben Bytes wie vorher
-  im Server, `wire.encode_body`); über die Queue gehen ≈ 50 kB statt ≈ 420 kB float64, der Server setzt nur den Kopf davor.
-- **Nur die sichtbare Ansicht:** g³-Clients bekommen nur `map3`, g⁴-Clients nur `cube4`, alle anderen nur den Kopf
-  (Kacheln, Rechenkern) ≈ 2 Hz wie bisher. In den Ansichten g³, g⁴ und Zeitverlauf kommen die Frames ohne
-  Histogramm- und g²-Kurven („lite“, ≈ 0,5 kB statt ≈ 25 kB); beim Wechsel zurück schickt der Server den letzten
-  vollständigen Frame sofort.
-- **Bandbreite je Client begrenzt:** Token-Bucket, Standard 200 kB/s für g³/g⁴-Frames (`HARP_GX_KBPS`). Passt ein
-  Frame nicht ins Budget, wird er übersprungen und der nächste frische gesendet – die Latenz bleibt kurz, nur die
-  Bildrate sinkt. Langsame Handys überspringen wie bisher (Sende-Warteschlange je Client, latest-only; 1.0.6).
-- **Ehrliche Latenz:** „Latenz“ in der Info-Zeile = Ende der Messzeit des neuesten enthaltenen Frames bis zur Übergabe
-  an die Sende-Warteschlange dieses Clients (Server-Rechnung, Worker, Kodierung, Warten). Dahinter zeigt die App
-  „+ Netz ≈ … ms“ (halbe Ping-Laufzeit). Nicht enthalten: Entpacken/Zeichnen im Browser und die Frame-Dauer selbst
-  (Ereignisse am Frame-Anfang sind bis zu einer Frame-Dauer, 150 ms, älter). Neu dahinter: die empfangene g³/g⁴-Bildrate
-  in Hz; „Datenmenge … kB/s“ zählt jetzt alle beim Gerät angekommenen Bytes. Die Zeitstempel stehen im Kopf jedes
-  Frames (`t_frame`, `t_in`, `t_proc`, `t_res`, `t_srv`, `t_send`).
-- **Messung Box (Thermisch_cw, 150-ms-Frames, 1 Client, Median / p90 / max), vorher → nachher:**
-  - Ansicht g⁴ gesamt Frame-Ende → Client: 306 / 459 / 459 ms → 22 / 26 / 63 ms; Info-Zeile 154 → 22 ms.
-  - g⁴-Bildrate 1,55 → 5,8 Hz (Budget), g³ 1,6 → 6,9 Hz; Abstand der g⁴-Frames 606 → 151 ms (Median).
-  - Bandbreite je Client in Ansicht g⁴: 56 kB/s (g⁴) + 163 kB/s (Histogramm-Frames) = 218 kB/s →
-    205 + 3,5 = 208 kB/s; in Ansicht g³: 30 + 163 = 193 → 122 + 3,5 = 126 kB/s. Ansicht Histogramm unverändert.
-  - Drei Clients gleichzeitig in g⁴: 22 / 28 / 65 ms, je 207 kB/s.
-- Ergebnisse unverändert (gleiche Rechnung, gleiche Kodierung). Neue Tests `tests/test_gx_push.py`.
-- Version 1.3.0-dev2 (Python); Rust-Kern unverändert 1.3.0-dev.
+Mit der Heralded-Datei zeigte 1.3.0-dev3 in der g²-Ansicht 5,8 ms + Netz 14 ms.
 
-## 1.3.0-dev – 17.10.2026 (Testversion)
+### Server-Pfad im Rust-Kern
 
-Schnellere CPU-Pfade, Anlass: auf dem Laptop von Herrn Eilers zeigte die Info-Zeile bei `Thermisch_cw`
-(g³/g⁴ ±900 ns, Koinzidenzfenster 50 ns, g²-Bin 512 ps, 4 Kanäle à ≈ 450 kcps) „Server 88,34 ms“, 5,5 fps,
-45 Mtags/s und 167,7 ms Latenz.
+- „Server … ms“ misst die Server-Schleife je Frame (PTU dekodieren, T2-Histogramm, g²-Korrelation, Zählraten), nicht
+  die g³/g⁴-Kerne (eigener GX-Prozess). Auf der Box entfielen von 35,5 ms 20,8 ms auf die g²-Korrelation (NumPy),
+  8,0 ms auf das T2-Histogramm, 4,2 ms auf das Dekodieren und 1,1 ms auf die Zählraten (`tools/profile_frame.py`).
+- Diese Schritte rechnet jetzt der Rust-Kern (`rust/harp_gx_core/src/stream.rs`, `harp/_core.py`) in einem Durchlauf
+  ohne Zwischenfelder und ohne GIL; g² per Zwei-Zeiger-Verfahren, parallel, mit Frame-übergreifendem Rest wie
+  bisher. **Bit-identisch** zu den NumPy-Fassungen. Diese bleiben als Rückfall: ohne `harp_gx_core` automatisch, mit
+  `HARP_STREAM_NUMPY=1` erzwungen. Tests `tests/test_stream_core.py` (Randfälle, alle Record-Typen, alle 9 Demodateien
+  Frame für Frame).
+- Box: Server-Schleife 35,5 → 5,6 ms (g² 20,8 → 1,6 ms, Histogramm 8,0 → 1,9 ms, Dekodieren 4,2 → 1,1 ms).
+- g³/g⁴-CPU-Kerne: Bins der c-/d-Marken je Start nur einmal, lokale u32-Histogramme je Thread (vor einem Überlauf
+  exakt umgebucht), Starts ohne Partner früh übersprungen. Bei breitem Fenster / hohem R·T 17–32 % schneller.
+- g³/g⁴-Frames mit zlib-Stufe 1 statt 6 (≈ 3× schneller, ≤ 1 % größer).
 
-- **Wo die Zeit hinging** (neu: `tools/profile_frame.py`, ein Live-Frame offline nachgestellt; Box, 8 Threads,
-  150-ms-Frames bei 1×, ≈ 271 000 Ereignisse je Frame): „Server … ms“ misst die Server-Schleife (Datei lesen,
-  Histogramm, g², Zählraten), **nicht** die g³/g⁴-Kerne – die laufen im eigenen GX-Prozess (≈ 12 ms je Frame).
-  Von 35,5 ms Server-Zeit entfielen 20,8 ms auf die g²-Kreuzkorrelation zum Referenzkanal (NumPy, alle Paare über
-  Hilfsfelder), 8,0 ms auf das T2-Start-Stopp-Histogramm, 4,2 ms auf das PTU-Dekodieren und 1,1 ms auf die Zählraten.
-- **Server-Pfad im Rust-Kern** (`rust/harp_gx_core/src/stream.rs`, `harp/_core.py`): PTU-Dekodierung (alle
-  Record-Typen), T2-Histogramm, g²-Korrelation (Zwei-Zeiger-Verfahren, parallel, Frame-übergreifender Tail wie
-  bisher) und Zählraten je in einem Durchlauf ohne Zwischenfelder, ohne GIL. **Bit-identisch** zu den
-  NumPy-Fassungen, die als Rückfall bleiben (`HARP_STREAM_NUMPY=1` erzwingt sie; ohne `harp_gx_core` automatisch).
-  Neue Tests `tests/test_stream_core.py`: Zufallsdaten mit Randfällen (alle Record-Typen, Gleichzeitigkeit, Kanäle
-  außerhalb, Lücken > W, leere Frames, ungerade Binzahl) und alle 9 Demodateien Frame für Frame.
-- **g³/g⁴-Kerne** (CPU): Bins der c-/d-Marken je Start nur einmal berechnet statt je Paar/Tripel, lokale
-  u32-Histogramme je Thread (halber Cache-Bedarf, vor einem möglichen Überlauf exakt in i64 umgebucht, Test mit
-  gesenkter Grenze), Starts ohne Partner früh übersprungen. Ergebnisse unverändert.
-- **g³/g⁴-Frame**: zlib-Stufe 1 statt 6 (≈ 3× schneller, höchstens ≈ 1 % größer).
-- **Messung Box, vorher → nachher:**
-  - Server-Schleife (`tools/profile_frame.py`, Median): 35,5 → 5,6 ms (×6,3); g² 20,8 → 1,6 ms,
-    T2-Histogramm 8,0 → 1,9 ms, Dekodieren 4,2 → 1,1 ms, Zählraten 1,1 → 0,2 ms.
-  - Echter Server mit WebSocket-Client, „Server … ms“: 38,9 → 7,0 ms (×5,6).
-  - GX-Worker je Frame: 12,6 → 7,9 ms (Kodierung g³+g⁴ 4,9 → 1,6 ms, g⁴ 1,4 → 1,0 ms, g³ 1,05 → 0,75 ms).
-  - `tools/bench_engines.py --only Thermisch_cw`, Rust 8 Threads: 38,1 → 42,1 Mtags/s, Frame 6,85 → 6,33 ms.
-  - Reine Kerne (`tools`-Fälle wie `bench_gpu.py`, alter gegen neuen Kern, Median aus 3 Läufen à bestes von 25,
-    Rust 8 Threads, Mtags/s): g³ ±1 µs R·T≈5 65 → 85 (+32 %), g³ ±900 ns bei 450 kcps 152 → 186 (+23 %),
-    g⁴ ±900 ns bei 450 kcps 78 → 93 (+18 %), g⁴ ±250 ns 101 → 118 (+17 %), g⁴ Live-Frame thermisch 128 → 158
-    (+23 %), g⁴ 20 Mcps 148 → 160 (+8 %), g³ 20 Mcps 211 → 224 (+6 %), schmale Fenster bei 2,5 Mcps +1–2 %.
-- Version 1.3.0-dev (Python), Rust-Kern 1.3.0-dev / Wheel 1.3.0.dev0; Service-Worker-Cache
-  `exse-harp-gx-mobil-1.3.0-dev-r1`. CI prüft den Server-Pfad im Wheel (Windows, Linux, macOS).
+### Kurze g³/g⁴-Latenz
+
+- **Ursache der alten Latenz** (`tools/latency_gx.py`, Box, Ansicht g⁴, Median / p90 / max): Die Server-Schleife
+  holte GX-Ergebnisse nur einmal je Frame ab (≈ 150 ms) und schickte sie im 0,5-s-Takt (Wartezeit 150 / 303 / 454 ms).
+  Gesamt Ende der Messzeit → Client 306 / 459 / 611 ms. Die alte Anzeige „Latenz“ zählte nur bis zum Abholen.
+- **Push statt Abfragen:** Der GX-Prozess liefert nach jedem gerechneten Frame ein Ergebnis (höchstens 20/s), kodiert
+  die Karten selbst (dieselben Bytes, `wire.encode_body`). Ein Lese-Thread reicht es sofort an den Server, der es ohne
+  Wartetakt an die Clients schickt.
+- **Nur die sichtbare Ansicht:** g³-Clients bekommen nur `map3`, g⁴-Clients nur `cube4`; die g²-Ansicht bei jedem
+  Ergebnis Kopf und Kacheln (≈ 1,5 kB); Histo und Zeit den Kopf ≈ 2 Hz (Infozeile). In g³, g⁴ und Zeitverlauf kommen
+  die Frames ohne Histogramm- und g²-Kurven (≈ 0,5 kB statt ≈ 25 kB). Zählraten, Messzeit, Infozeile, Kalibrierung
+  und Laufzeiten bleiben drin. Beim Wechsel zurück schickt der Server den letzten vollständigen Frame sofort.
+- **Bandbreite je Client begrenzt:** höchstens `HARP_GX_KBPS` (Standard 200) kB/s für g³/g⁴-Frames. Passt ein Frame
+  nicht ins Budget, wird er übersprungen und der nächste, frische gesendet. Die Latenz bleibt kurz, nur die Bildrate
+  sinkt. Langsame Geräte überspringen wie bisher (Sende-Warteschlange je Client, seit 1.0.6).
+- **Ehrliche Latenz:** „Latenz“ in der Infozeile = Ende der Messzeit des neuesten Frames bis zur Übergabe an die
+  Sende-Warteschlange dieses Geräts; dahinter „+ Netz ≈ … ms“ (halbe Ping-Laufzeit) und in g³/g⁴ die empfangene
+  Bildrate in Hz. Nicht enthalten: Zeichnen im Browser und die Frame-Dauer selbst. „Datenmenge … kB/s empfangen“
+  zählt alle beim Gerät angekommenen Bytes.
+- Box, `Thermisch_cw`, Ansicht g⁴: Ende der Messzeit → Client 306 / 459 / 459 → 22 / 26 / 63 ms, 1,55 → 5,8 Hz.
+  Bandbreite in g⁴ 218 → 208 kB/s, in g³ 193 → 126 kB/s, Histogramm unverändert. Drei Clients in g⁴: 22 / 28 / 65 ms.
+
+### Behobene Fehler (aus dem Test von 1.3.0-dev2)
+
+- **g²-Ansicht nach jedem Datei-Umlauf „–“ und „… · 0.0 s“.** Direkt nach dem Reset beim Umlauf schickte der
+  GX-Prozess ein leeres Ergebnis, das die g²-Ansicht (Kopf nur ≈ 2 Hz) bis zu ≈ 0,6 s zeigte; ebenso kurz leere
+  g³/g⁴-Karten. Jetzt hält der GX-Prozess ein leeres Ergebnis nach Reset, Neukalibrierung oder neuer Geometrie
+  zurück, bis Daten gerechnet sind (höchstens 0,4 s). Die g²-Kacheln kommen bei jedem Ergebnis; ohne Kacheln steht
+  „sammelt Daten …“ statt „–“. Histogramm und g²-Kurve werden getrennt gezeichnet; ältere GX-Frames überschreiben
+  keine neueren.
+- **Auswahlfelder zeigten nach der ersten Änderung die erste Option** (z. B. „Bereich g³/g⁴“ 2,5 µs → Anzeige 5 ns,
+  Koinzidenzfenster 10 ns → 100 ps), obwohl der Server den gewählten Wert hatte. Ursache: Der automatisch gewählte
+  Wert fiel aus der Liste, die Liste wurde neu aufgebaut, und bei Fokus im Feld wurde der Wert absichtlich nicht
+  gesetzt. Jetzt zeigen alle Auswahlfelder den Server-Wert; nur eine eigene, noch unbestätigte Auswahl bleibt bis zur
+  Bestätigung stehen (höchstens 3 s).
+
+### Tests und Werkzeuge
+
+- `tests/test_stream_core.py`, `tests/test_gx_push.py`, `tests/test_views.py` (jede Ansicht bekommt, was sie
+  braucht; Ende zu Ende über alle 20 Ansichtswechsel und mehrere Datei-Umläufe).
+- `tests/test_browser_smoke.py` mit `tools/browser_smoke.py`: alle Ansichten im Headless-Chromium bei Desktop-Breite
+  und 390 px, nach Datei-Umlauf, zwei Clients mit Zuschauer-Modus, erste Änderung jedes Auswahlfelds
+  (ohne Playwright übersprungen).
+- `tools/profile_frame.py` (Server-Frame aufgeschlüsselt), `tools/latency_gx.py` (Latenz und Bandbreite je Ansicht).
+- Version 1.3.0 in Python-Paket, Rust-Kern (Cargo/pyproject), App-Fußzeile und Anleitung (PDF). Das Programm-Zip
+  enthält das Windows-Wheel `harp_gx_core-1.3.0-cp311-abi3-win_amd64.whl` unter `wheels\`.
 
 ## 1.2.0 – 17.10.2026
 

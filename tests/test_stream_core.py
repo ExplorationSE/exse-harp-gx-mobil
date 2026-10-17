@@ -1,4 +1,4 @@
-"""Server-Pfad im Rust-Kern (seit 1.3.0-dev): bit-identisch zu den NumPy-Fassungen (Dekoder, T2-Histogramm,
+"""Server-Pfad im Rust-Kern (seit 1.3.0): bit-identisch zu den NumPy-Fassungen (Dekoder, T2-Histogramm,
 g²-Korrelation mit Tail, Zählraten) – auf Zufallsdaten mit Randfällen und auf allen Demodateien."""
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from harp.sources.base import AcqParams
 from harp.sources.pure_ptu import PurePythonPtuSource
 
 core = _core.CORE
-pytestmark = pytest.mark.skipif(core is None, reason="harp_gx_core ≥ 1.3.0-dev nicht installiert")
+pytestmark = pytest.mark.skipif(core is None, reason="harp_gx_core ≥ 1.3.0 nicht installiert")
 DATA = Path(__file__).resolve().parent.parent / "data"
 
 

@@ -4,7 +4,7 @@ Der Server schickt Zeitmarken-Blöcke (int64 ps, Kanal) über eine Queue; der Wo
 (Numba nutzt dort alle Kerne, ohne die Ereignisschleife des Servers zu blockieren) und liefert nach jedem
 gerechneten Block (höchstens alle ``out_interval_s``) ein Ergebnis zurück. Start per 'spawn' (wie unter Windows).
 
-Seit 1.3.0-dev2: Der Worker kodiert die Karten g³/g⁴ selbst (``wire.encode_body``, dieselben Bytes wie zuvor im
+Seit 1.3.0: Der Worker kodiert die Karten g³/g⁴ selbst (``wire.encode_body``, dieselben Bytes wie zuvor im
 Server) und schickt nur die komprimierten Nutzdaten statt der float64-Felder. Ein Lese-Thread im Server-Prozess
 holt die Ergebnisse sofort ab und weckt den Server (``notify``), statt dass die Server-Schleife einmal je Frame
 nachsieht. Zeitstempel (time.monotonic, systemweit): ``t_frame`` Ende der Messzeit des neuesten enthaltenen Frames,

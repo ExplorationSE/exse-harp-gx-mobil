@@ -1,6 +1,6 @@
-"""Rust-Kern für den Server-Pfad je Frame (seit 1.3.0-dev): PTU-Dekodierung, T2-Histogramm, g²-Korrelation, Zählraten.
+"""Rust-Kern für den Server-Pfad je Frame (seit 1.3.0): PTU-Dekodierung, T2-Histogramm, g²-Korrelation, Zählraten.
 
-Optional: Ist `harp_gx_core` (≥ 1.3.0-dev) installiert, rechnen `StreamDecoder.decode`, `histogram_t2`, `correlate`
+Optional: Ist `harp_gx_core` (≥ 1.3.0) installiert, rechnen `StreamDecoder.decode`, `histogram_t2`, `correlate`
 und `counts_per_channel` dort in einem Durchlauf ohne Zwischenfelder – bit-identisch zu den NumPy-Fassungen, die
 als Rückfall bleiben (Tests vergleichen beide). HARP_STREAM_NUMPY = 1 oder HARP_GX_NO_RUST = 1 erzwingt NumPy.
 """

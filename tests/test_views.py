@@ -1,4 +1,4 @@
-"""Jede Ansicht bekommt, was sie braucht (seit 1.3.0-dev3).
+"""Jede Ansicht bekommt, was sie braucht (seit 1.3.0).
 
 Hintergrund: in 1.3.0-dev2 zeigte die g²-Ansicht nach jedem Datei-Umlauf „–“ und „0.0 s“ (leeres GX-Ergebnis direkt
 nach dem Reset, Kopf nur mit 2 Hz), und Auswahlfelder zeigten nach der ersten Änderung die erste Option (5 ns).

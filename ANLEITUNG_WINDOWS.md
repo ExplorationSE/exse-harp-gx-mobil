@@ -1,5 +1,7 @@
 # ExSE Harp GX Mobil – Anleitung: Betrieb unter Windows mit Zugriff vom Handy über das Internet
 
+**Version 1.3.0 · Stand 17.10.2026**
+
 Diese Anleitung führt Sie Schritt für Schritt durch Installation, Start und Bedienung von ExSE Harp GX Mobil
 (Simulation aus einer PTU-Datei) auf Ihrem eigenen Windows-PC. Das Handy greift über das Internet
 (z. B. mobile Daten) darauf zu – über einen **Cloudflare Quick Tunnel**. Sie benötigen dafür **kein Konto**,
@@ -74,19 +76,26 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
    dem Editor ansehen.
 3. Das Skript legt eine eigene Python-Umgebung (`.venv`) im Ordner an und lädt die Pakete (FastAPI, uvicorn,
    NumPy, qrcode, pytest). Das dauert je nach Verbindung 1–5 Minuten. Es wird **kein Compiler** benötigt.
-   Ab Version 1.1 installiert es danach den Rust-Rechenkern aus dem Ordner `wheels\`
-   (Meldung „Installiere Rust-Rechenkern harp_gx_core-…whl …“). Fehlt das Wheel oder passt es nicht, rechnet
-   das Programm mit Numba weiter – genauso richtig, nur etwas langsamer. Der aktive Kern steht in der App in der
-   Info-Zeile „Rechenkern“, z. B. „Rust (rayon) · 4 Threads · … Mtags/s“.
-   „Latenz … ms“ dahinter: Zeit vom Ende der Messzeit des neuesten Frames bis zum Absenden an Ihr Gerät,
-   „+ Netz ≈ … ms“ die geschätzte Übertragungszeit (halbe Ping-Laufzeit). Ab Version 1.3.0-dev2 kommen die
-   g³/g⁴-Bilder nach jedem Frame (bis ≈ 6 pro Sekunde, je nach Datenmenge), sonst ≈ 2 pro Sekunde.
-   Ab Version 1.2 enthält der Rust-Rechenkern zusätzlich einen GPU-Pfad (DirectX 12 / Vulkan, auch für
-   Intel- und AMD-Grafik). Beim Start wird die Grafik geprüft und mit der CPU verglichen; die GPU rechnet nur, wenn sie für
-   die aktuelle Messung schneller ist. Dann steht dort z. B. „GPU (wgpu, AMD Radeon(TM) Graphics) · … Mtags/s“,
-   sonst wie bisher der CPU-Kern. Die Ergebnisse sind in beiden Fällen identisch. Ohne passende Grafik rechnet die
-   CPU – es ist nichts einzustellen. Auf integrierter Grafik ist die CPU meist schneller; dann steht am Ende
-   der Zeile „GPU … vorhanden, CPU schneller“ – das ist so richtig.
+   Danach installiert es den Rust-Rechenkern aus dem Ordner `wheels\`
+   (Meldung „Installiere Rust-Rechenkern harp_gx_core-1.3.0-…whl …“). Fehlt das Wheel oder passt es nicht, rechnet
+   das Programm mit Numba weiter – genauso richtig, nur langsamer.
+
+   Was die Info-Zeile in der App zeigt:
+   * **„Rechenkern“** – der aktive Kern, z. B. „Rust (rayon) · 8 Threads · … Mtags/s“.
+   * **„Server … ms“** (Zeile „Datenmenge“) – Rechenzeit der Server-Schleife je Bild (Datei lesen, Histogramm, g²,
+     Zählraten). Seit 1.3 rechnet das der Rust-Kern: auf dem Test-Laptop ≈ 13 ms statt ≈ 88 ms.
+   * **„Latenz … ms“** – Zeit vom Ende der Messzeit des neuesten Bildes bis zum Absenden an Ihr Gerät;
+     **„+ Netz ≈ … ms“** ist die geschätzte Übertragungszeit (halbe Ping-Laufzeit). Typisch seit 1.3: ≈ 20–40 ms + Netz.
+     Die g³/g⁴-Bilder kommen nach jedem Frame, also bis ≈ 6 pro Sekunde; die Zahl dahinter (Hz) ist die empfangene Rate.
+   * **„Datenmenge … kB/s empfangen“** – alles, was bei Ihrem Gerät ankommt. In der Ansicht g⁴ etwa 200 kB/s.
+     Je Gerät werden höchstens 200 kB/s g³/g⁴-Daten geschickt; darüber wird ein Bild ausgelassen. Für mobile Daten
+     können Sie das senken: Eingabeaufforderung im Programmordner öffnen, `set HARP_GX_KBPS=100`, dann
+     `start_online.bat` aus dieser Eingabeaufforderung starten.
+   * **GPU:** Der Rust-Kern enthält einen GPU-Pfad (DirectX 12 / Vulkan, auch für Intel- und AMD-Grafik). Beim Start
+     wird die Grafik geprüft und mit der CPU verglichen; die GPU rechnet nur, wenn sie für die aktuelle Messung
+     schneller ist. Dann steht dort z. B. „GPU (wgpu, …) · … Mtags/s“. Die Ergebnisse sind in beiden Fällen identisch.
+     Auf integrierter Grafik ist die CPU bisher immer schneller gewesen; dann steht am Ende der Zeile
+     „GPU … vorhanden, CPU schneller“ – das ist so richtig, es ist nichts einzustellen.
 4. Am Ende steht „Fertig.“ – Fenster mit einer Taste schließen.
 
 ## 5. Online starten: `start_online.bat`
@@ -149,7 +158,11 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
     zwischen K1/K2, K1/K4, K3/K2, K3/K4, flach (≈ 1) zwischen K1/K3 und K2/K4;
     `Demo_Synthetisch_T2_Photonentripel_cw_5s.ptu` – Photonentripel, in **g³** ein starker Peak g³(0,0) ≈ 7·10⁵.
   * **Referenzkanal (g²)**: Bezugskanal der Korrelation (τ = t(Kn) − t(Kref)) und bei T2 Start des Histogramms; er hat keine eigene Kurve.
-* Unter **Datenmenge** sehen Sie Größe pro Bild und kB/s (typisch wenige kB pro Bild).
+* Ansichten **g²**, **g³** und **g⁴** (Umschalter oben links): große Kachel g²(0) / g³(0,0) / g⁴(0,0,0), darunter
+  alle Kanal-Kombinationen und graue Hinweise (Fenster, Normierung, Messzeit). Direkt nach dem Start oder einem
+  Datei-Umlauf steht dort kurz „sammelt Daten …“.
+* Unter **Datenmenge** sehen Sie Größe pro Bild und die empfangenen kB/s (Ansicht Histogramm ≈ 25 kB pro Bild,
+  in g³/g⁴ deutlich weniger Histogrammdaten, dafür die Karten).
 * Zweites Handy/Browser parallel: sieht dieselben Daten, kann aber erst steuern, wenn das erste die Steuerung abgibt (oder 5 Minuten lang nichts geändert hat).
 * Optional „Zum Startbildschirm hinzufügen“ – dann startet die Seite wie eine App.
 
@@ -200,4 +213,6 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
 * Nur lokal ohne Tunnel, aber mit Code: `powershell -ExecutionPolicy Bypass -File start_online.ps1 -NoTunnel`.
 * Betrieb im lokalen Netz ohne Internet: `start_server.bat` (siehe `README.md`, Abschnitt 4).
 * Tests: `.venv\Scripts\python.exe -m pytest -q`
+* Weitere Einstellungen über Umgebungsvariablen (z. B. `HARP_GX_KBPS`, `HARP_GX_ENGINE`, `HARP_GX_THREADS`,
+  `HARP_STREAM_NUMPY`): Tabelle im `README.md`, Abschnitt „Umgebungsvariablen“.
 * Logdateien: `logs\server-online.log`, `logs\cloudflared.log`, `logs\commands.jsonl` (Steuerbefehle).

@@ -223,7 +223,7 @@ def test_split_channels_equal_and_fallback():
 @need_rust
 @pytest.mark.parametrize("cap", [1, 7, 1000])
 def test_rust_u32_local_hist_flush_exact(cap):
-    """Lokale u32-Histogramme (seit 1.3.0-dev) werden vor Überlauf umgebucht – mit gesenkter Grenze geprüft,
+    """Lokale u32-Histogramme (seit 1.3.0) werden vor Überlauf umgebucht – mit gesenkter Grenze geprüft,
     auch der Pfad „ein Start allein zu groß“ (cap = 1)."""
     import harp_gx_core as rs
     ts = _rand(seed=5, n=20_000, span=10**9)

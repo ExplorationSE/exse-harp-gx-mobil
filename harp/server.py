@@ -37,7 +37,7 @@ WEB_DIR = BASE_DIR / "web"
 
 
 SEND_TIMEOUT_S = 5.0     # länger hängendes Senden → Verbindung gilt als tot und wird geschlossen
-# g³/g⁴ (seit 1.3.0-dev2): Der Worker liefert nach jedem Frame ein Ergebnis, der Server schickt es sofort weiter
+# g³/g⁴ (seit 1.3.0): Der Worker liefert nach jedem Frame ein Ergebnis, der Server schickt es sofort weiter
 # (Push statt Abfragen im Takt). Je Client nur die sichtbare Ansicht; Bandbreite je Client per Token-Bucket
 # begrenzt (HARP_GX_KBPS, Standard 200 kB/s): passt ein Frame nicht ins Budget, wird er übersprungen und der
 # nächste, frische gesendet – die Latenz bleibt kurz, nur die Bildrate sinkt.

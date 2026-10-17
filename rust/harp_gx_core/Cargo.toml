@@ -1,6 +1,6 @@
 [package]
 name = "harp_gx_core"
-version = "1.3.0-dev"
+version = "1.3.0"
 edition = "2021"
 description = "Rust-Rechenkern (g²/g³/g⁴-Koinzidenzhistogramme) für ExSE Harp GX Mobil"
 license = "MIT"

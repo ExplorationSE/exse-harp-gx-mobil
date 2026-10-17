@@ -36,18 +36,21 @@ Steuerung im Browser (PWA); derzeit **Simulation aus PTU-Dateien, noch ohne Ger�
 
 **ExSE Harp GX Mobil** ist der Leistungszweig von [ExSE Harp Mobil](https://github.com/ExplorationSE/exse-harp-mobil)
 (Ausgangsbasis: Mobil 1.0.6, Commit `ffec0b3`; Mobil selbst bleibt unverändert). Ziel: Korrelationen höherer Ordnung
-**g⁽²⁾, g⁽³⁾, g⁽⁴⁾** aus T2-Zeitmarken in Echtzeit, mit schnellem Rechenkern (später Rust, GPU über wgpu/Vulkan/DirectX 12,
-auch für integrierte Intel-Grafik) und Anzeige auf dem Handy.
+**g⁽²⁾, g⁽³⁾, g⁽⁴⁾** aus T2-Zeitmarken in Echtzeit, mit schnellem Rechenkern und Anzeige auf dem Handy.
 
-**Version 1.0 (dieser Stand):**
+**Version 1.3.0 (dieser Stand):**
 - Fünf Ansichten **Histo | Zeit | g² | g³ | g⁴** mit großer Kachel g²(0) / g³(0,0) / g⁴(0,0,0), Kachelliste aller
   Kanal-Kombinationen, Heralded g²ₕ (K0 als Herald) und grauen Hinweisen. Die g³/g⁴-Karten haben eine log. Farbskala.
-- Live-Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall, bitgleich), kompakte Binär-Frames.
+- Rechenkern `harp_gx_core` in Rust (CPU, rayon) mit GPU-Pfad (wgpu); Rückfall auf Numba bzw. NumPy, alle bitgleich.
+- Server-Schleife (Dekodieren, Histogramm, g²-Korrelation, Zählraten) im Rust-Kern: auf dem Laptop von Herrn Eilers
+  88 → 12,8 ms je Frame.
+- g³/g⁴ per Push nach jedem Frame: Latenz ≈ 35 ms + Netz statt ≈ 300 ms, ≈ 6 Aktualisierungen pro Sekunde,
+  Bandbreite je Gerät begrenzt (`HARP_GX_KBPS`).
 - Automatische Kalibrierung der Kabel-Laufzeiten aus den g²-Kurven; bei cw automatische Wahl von Fenster und Bereich.
 - Neun synthetische T2-Demodateien mit **analytisch bekannten** g⁽²⁾/g⁽³⁾/g⁽⁴⁾ (s. Tabelle), als Daten-Zips im Release.
 - Referenz-Implementierung `harp/gn.py` (NumPy, exakt): Koinzidenzzählung mit Fenster, Normierung für
-  Dauerstrich (Zufallskoinzidenzen) und gepulst (Seitenpeaks).
-- Validierungstests `tests/test_gn_validation.py` und Prüfwerkzeug `tools/validate_gx.py`.
+  Dauerstrich (Zufallskoinzidenzen) und gepulst (Seitenpeaks). Validierung: `tests/test_gn_validation.py`,
+  `tools/validate_gx.py`.
 
 | Datei (`data/`) | Szenario | Sollwerte | gemessen (Demodatei) |
 |---|---|---|---|
@@ -79,71 +82,84 @@ python tools\validate_gx.py              REM g(n) berechnen und mit den Sollwert
 **Normierung:** cw: g⁽ⁿ⁾ = N_Tupel / (N_a · Π_j N_j·w/T). Gepulst: g⁽ⁿ⁾(0) = N(0,…,0) / ⟨N(k₁P, k₂P, …)⟩ mit
 paarweise verschiedenen Pulsabständen k_j ≠ 0 (Seitenpeaks). Heralded: g²_h = N_h · N_h12 / (N_h1 · N_h2).
 
-## Live g²/g³/g⁴ – Rechenkern und Ansichten
+## Live g²/g³/g⁴ – Rechenkerne, Latenz, Bandbreite
 
-Rechenkern `harp/gx` (Numba im Worker-Prozess, NumPy-Rückfall). Ansichten g³ (Heatmap + Schnitte) und g⁴
-(τ3-Schnitt, Diagonale, g⁴(0,0,0)). Messung auf der Box (8 Threads, Tempo 1×, Ansicht g³): 5,8–78 Mtags/s
-Rechenkapazität je Demodatei, Frame-Latenz median ≈ 150 ms, Frames 0,6–2,1 kB.
+### Rechenkerne
 
-**1.1.0 – Rust-Rechenkern:** `harp_gx_core` (PyO3/rayon) unter `rust/harp_gx_core`, bitgleich zu Numba.
-Die Reihenfolge ist Rust > Numba > NumPy mit automatischem Rückfall; der aktive Kern steht in der Info-Zeile „Rechenkern“.
-- Umgebungsvariablen: `HARP_GX_ENGINE=rust|numba|numpy` (erzwingen), `HARP_GX_THREADS=4` (Threads).
-- Windows: Ein fertiges Wheel `harp_gx_core-…-cp311-abi3-win_amd64.whl` aus dem Release in den Ordner `wheels\`
-  legen und `install_windows.bat` ausführen. Ein Compiler ist nicht nötig. Ohne Wheel rechnet Numba.
+Die g³/g⁴-Histogramme rechnet ein eigener GX-Prozess (`harp/gx`), damit die Server-Schleife nie wartet. Reihenfolge
+**Rust > Numba > NumPy** mit automatischem Rückfall; der aktive Kern steht in der Infozeile „Rechenkern“.
+Alle Kerne liefern bitgleiche Ergebnisse (Tests gegen `harp/gn.py`, alle 9 Demodateien).
+
+- **Rust-Kern `harp_gx_core`** (PyO3/rayon, `rust/harp_gx_core`, seit 1.1). Unter Windows liegt das fertige Wheel
+  `harp_gx_core-1.3.0-cp311-abi3-win_amd64.whl` im Programm-Zip unter `wheels\`; `install_windows.bat` installiert es.
+  Ein Compiler ist nicht nötig. Ohne Wheel rechnet Numba.
+- **Server-Pfad im Rust-Kern** (seit 1.3, `src/stream.rs`): PTU-Dekodierung, T2-Start-Stopp-Histogramm,
+  g²-Kreuzkorrelation und Zählraten je Frame in einem Durchlauf, bit-identisch zu den NumPy-Fassungen (Rückfall
+  ohne Kern oder mit `HARP_STREAM_NUMPY=1`). „Server … ms“ in der Infozeile ist die Zeit dieser Schleife je Frame,
+  nicht die der g³/g⁴-Kerne. Box, `Thermisch_cw` bei 1×: 35,5 → 5,6 ms; Laptop von Herrn Eilers: 88 → 12,8 ms.
+  Aufschlüsselung: `python tools/profile_frame.py [Datei] [--refresh-ms 150] [--corr-binning 9]`.
+- **GPU-Pfad (wgpu, seit 1.2):** Compute-Shader (WGSL) für die g²/g³/g⁴-Histogramme über DirectX 12, Vulkan oder
+  Metal. Gleiche Rechenvorschrift wie die CPU: Blöcke zu ≤ 256 Start-Marken mit Überlapp ±W, 32-bit-Relativzeiten je
+  Block, Bins als atomare u32-Paare mit Übertrag (exakt bis 2⁶⁴); bit-identisch zur CPU (`tests/test_gx_gpu.py`).
+  - Automatik: Beim Start wird die GPU in einem eigenen Prüfprozess samt Selbsttest geöffnet. Danach misst die Engine
+    je Rechenart und Geometrie GPU gegen CPU und nimmt die GPU nur, wenn sie ≥ 10 % schneller ist; Nachprüfung alle
+    200 Aufrufe. Jeder GPU-Fehler → Rückfall auf die CPU mit Hinweis in der Infozeile.
+  - **Ehrlich gesagt:** Auf der bisher gemessenen integrierten Grafik (AMD Radeon, DirectX 12) rechnet die GPU exakt,
+    ist aber nur 0,13–0,67× so schnell wie der Rust-Kern mit 8 Threads. Die Automatik behält dort die CPU, die
+    Infozeile zeigt „GPU … vorhanden, CPU schneller“. Lohnend erst mit einer deutlich stärkeren (diskreten) Grafik;
+    das ist noch nicht gemessen.
 - Selbst bauen (Rust ≥ 1.80): `pip install maturin` und `maturin build --release -m rust/harp_gx_core/Cargo.toml -o wheelhouse`,
-  danach `pip install wheelhouse/*.whl`.
-- Vergleich: `python tools/bench_engines.py --threads 1,2,4,8`.
+  danach `pip install wheelhouse/*.whl`; ohne GPU-Pfad mit `--no-default-features`.
+- Vergleich: `python tools/bench_engines.py --threads 1,2,4,8 [--engines rust,gpu,auto]`, `python tools/bench_gpu.py`.
 
-**1.2.0 – GPU-Pfad (wgpu):** Der Rust-Kern enthält Compute-Shader (WGSL) für die g²/g³/g⁴-Histogramme,
-lauffähig über DirectX 12 und Vulkan (Windows, auch Intel-iGPU) bzw. Metal.
-- Gleiche Rechenvorschrift wie die CPU: Start-Marken in Blöcken zu ≤ 256 mit Überlapp ±W; Zeiten je Block als
-  32-bit-Relativzeiten (Basis = erste Start-Marke − W, Spannweite < 2³⁰ ps, Fenster 2W ≤ 2³⁰ ps); eine
-  Arbeitsgruppe je Block, eine Start-Marke je Thread, Fensterränder per Bisektion, Bins als atomare u32-Paare mit
-  Übertrag (exakt bis 2⁶⁴). Ergebnisse **bit-identisch** zu Rust-CPU, Numba, NumPy und den Tupelzählungen von
-  `harp/gn.py` (Tests `tests/test_gx_gpu.py`, alle 9 Demodateien).
-- Automatik: Beim Start (`warmup`) wird die GPU in einem eigenen Prüfprozess geöffnet und gegen die CPU getestet
-  (Treiberabsturz → einfach keine GPU). Danach misst die Engine je Rechenart und Geometrie die ersten Aufrufe
-  abwechselnd auf GPU und CPU und nimmt die GPU nur, wenn sie ≥ 10 % schneller ist; Nachprüfung alle 200 Aufrufe.
-  Software-Adapter (WARP, lavapipe) werden im Betrieb nicht benutzt. Kacheln/Fensterzählungen bleiben auf der CPU.
-- Jeder GPU-Fehler (auch Geräteverlust) → Rückfall auf die CPU mit Hinweis in der Info-Zeile.
-- Info-Zeile „Rechenkern“: „GPU (wgpu, <Grafikchip>) · … Mtags/s“ oder der CPU-Kern wie bisher; ist eine GPU
-  vorhanden, aber langsamer, steht am Ende „GPU … vorhanden, CPU schneller“.
-- Umgebungsvariablen: `HARP_GX_ENGINE=gpu` (Histogramme immer auf der GPU), `HARP_GX_NO_GPU=1` (aus),
-  `HARP_GX_GPU_BACKEND=dx12|vulkan`, `HARP_GX_GPU_ALLOW_CPU=1` (Software-Adapter, nur für Tests).
-- Messungen: `python tools/bench_gpu.py` (reine Kerne) und `python tools/bench_engines.py --engines rust,gpu,auto`.
-- Gemessen auf einer integrierten AMD Radeon (DirectX 12): exakt, aber 0,13–0,67× so schnell wie der Rust-Kern mit
-  8 Threads → die Automatik behält dort die CPU. Lohnend erst mit einer deutlich stärkeren (diskreten) Grafik.
-- Ohne GPU-Pfad bauen: `maturin build --release --no-default-features -m rust/harp_gx_core/Cargo.toml`.
+### Latenz und Bandbreite
 
-**1.3.0-dev – schnellere Server-Schleife:** „Server … ms“ in der Info-Zeile ist die Zeit der Server-Schleife je Frame
-(PTU dekodieren, Histogramm, g²-Korrelation, Zählraten), nicht die der g³/g⁴-Kerne (eigener GX-Prozess).
-Diese Schritte rechnet jetzt der Rust-Kern (`src/stream.rs`) in einem Durchlauf, bit-identisch zu NumPy
-(Rückfall ohne Kern oder mit `HARP_STREAM_NUMPY=1`). Box, `Thermisch_cw` bei 1×: 35,5 → 5,6 ms je Frame.
-Die g³/g⁴-CPU-Kerne sind bei breitem Fenster / hohem R·T 17–32 % schneller. Aufschlüsselung je Frame:
-`python tools/profile_frame.py [Datei] [--refresh-ms 150] [--corr-binning 9]`.
+- Der GX-Prozess liefert nach jedem Frame ein Ergebnis (Karten schon dort kodiert), ein Lese-Thread reicht es sofort
+  an den Server weiter, der es ohne Wartetakt an die Clients schickt.
+- Je Gerät geht nur, was die Ansicht zeigt: g³ nur die g³-Karte, g⁴ nur den g⁴-Würfel, g² bei jedem Ergebnis die
+  Kacheln (≈ 1,5 kB), Histo/Zeit den Kopf ≈ 2 Hz für die Infozeile. In g³, g⁴ und Zeitverlauf kommen die
+  Histogramm-Frames ohne Kurven (≈ 0,5 kB statt ≈ 25 kB).
+- **Bandbreiten-Budget:** höchstens `HARP_GX_KBPS` kB/s (Standard 200) g³/g⁴-Daten je Gerät. Was darüber liegt, wird
+  übersprungen, nicht verzögert: Die Latenz bleibt kurz, nur die Bildrate sinkt. Für mobile Daten z. B.
+  `set HARP_GX_KBPS=100` vor `start_server.bat` bzw. `start_online.bat`.
+- **„Latenz“ in der Infozeile** = Ende der Messzeit des neuesten Frames bis zur Übergabe an die Sende-Warteschlange
+  dieses Geräts; dahinter „+ Netz ≈ … ms“ (halbe Ping-Laufzeit) und in g³/g⁴ die empfangene Bildrate in Hz.
+  Nicht enthalten: Zeichnen im Browser und die Frame-Dauer selbst (Ereignisse am Frame-Anfang sind bis zu 150 ms älter).
+- Gemessen (Box, `Thermisch_cw`, Ansicht g⁴, Median): Ende der Messzeit → Client 306 → 22 ms, 1,6 → 5,8 Hz, bei
+  etwa gleicher Bandbreite (≈ 210 kB/s; Ansicht g³ ≈ 126 kB/s). Laptop von Herrn Eilers: ≈ 35 ms + Netz, ≈ 6 Hz.
+  Messung: `python tools/latency_gx.py [Datei] [--view g4] [--clients 3]`.
 
-**1.3.0-dev3:** g²-Ansicht nach Datei-Umlauf ohne „–“/„0.0 s“ (kein leeres GX-Ergebnis mehr, Kacheln bei jedem Ergebnis); Auswahlfelder zeigen nach der ersten Änderung den gewählten Wert (nicht die erste Option); Browser-Rauchtest `tools/browser_smoke.py`.
+### Umgebungsvariablen
 
-**1.3.0-dev2 – kurze g³/g⁴-Latenz:** Der GX-Worker liefert nach jedem Frame ein Ergebnis (Karten im Worker kodiert),
-ein Lese-Thread reicht es sofort an den Server weiter, der es ohne Wartetakt an die Clients schickt – je Client nur
-die sichtbare Karte, höchstens `HARP_GX_KBPS` (Standard 200) kB/s; zu große Frames werden übersprungen, nicht
-verzögert. In den Ansichten g³/g⁴/Zeitverlauf kommen die Frames ohne Histogrammkurven. „Latenz“ in der Info-Zeile =
-Ende der Messzeit des neuesten Frames → Übergabe an die Sende-Warteschlange des Clients, dahinter „+ Netz ≈“ (halbe
-Ping-Laufzeit); nicht enthalten sind Zeichnen im Browser und die Frame-Dauer selbst. Box, `Thermisch_cw`, g⁴:
-Frame-Ende → Client median 306 → 22 ms, 1,6 → 5,8 Hz bei gleicher Bandbreite (≈ 210 kB/s).
-Messung: `python tools/latency_gx.py [Datei] [--view g4] [--clients 3]`.
+Setzen Sie sie in einer Eingabeaufforderung im Programmordner vor `start_server.bat` bzw. `start_online.bat`
+(z. B. `set HARP_GX_KBPS=100`). Ohne Variablen wählt das Programm alles selbst.
 
-**0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
-im g² (FWHM ≥ 50 ns) gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach
-Statistik gewählt (≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns.
-Setzen Sie Fenster oder Bereich selbst, ist die Automatik aus. Bei jedem Dateidurchlauf werden die Werte
-weiterhin neu gesammelt. Zeit bis g³ und g⁴ stabil sind (n ≥ 10, ±10 % vom Sollwert), live bei 1×:
-thermisch cw ≈ 2,3 s, Laser ≈ 1,3 s, thermisch gepulst ≈ 0,6 s.
-Die Binär-Frames sind bei gefüllten Karten größer: thermisch cw ≈ 35 kB, Laser ≈ 13 kB (2 Hz).
+| Variable | Wirkung |
+|---|---|
+| `HARP_GX_KBPS=200` | Budget für g³/g⁴-Daten je Gerät in kB/s |
+| `HARP_GX_ENGINE=gpu\|rust\|numba\|numpy` | g³/g⁴-Kern erzwingen |
+| `HARP_GX_THREADS=n` | Zahl der Threads begrenzen |
+| `HARP_GX_NO_GPU=1`, `HARP_GX_NO_RUST=1`, `HARP_GX_NO_NUMBA=1` | GPU, Rust bzw. Numba überspringen (`NO_RUST` gilt auch für den Server-Pfad) |
+| `HARP_GX_GPU_BACKEND=dx12\|vulkan` | Grafikschnittstelle festlegen |
+| `HARP_GX_GPU_ALLOW_CPU=1` | Software-Adapter (WARP, lavapipe) zulassen – nur für Tests |
+| `HARP_STREAM_NUMPY=1` | Server-Pfad (Dekodieren, Histogramm, g²) mit NumPy statt Rust |
+| `HARP_GX_DISABLE=1` | GX-Prozess (g³/g⁴) ganz aus |
+| `HARP_TOKEN=…` | fester Zugangscode statt eines zufälligen |
+| `HARP_TUNNEL_PROTOCOL=http2` | Cloudflare-Tunnel über HTTP/2, falls QUIC/UDP gesperrt ist |
 
-Einschränkungen: Karten werden nur aufsummiert (kein Abklingen); snAPI-Quelle liefert keine Einzelereignisse
-(kein g³/g⁴); Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); Kalibrierung braucht ein Merkmal im g² (beim kohärenten Laser keine); Kacheln nutzen ein festes,
-bei τ=0 zentriertes Fenster; GPU-Pfad auf integrierter Grafik (AMD Radeon gemessen) langsamer als die CPU – dort rechnet automatisch die CPU.
+### Automatische Wahl von Fenster und Bereich (cw)
+
+Fenster und Bereich werden bei cw nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal im g² (FWHM ≥ 50 ns)
+gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach Statistik gewählt
+(≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns. Setzen Sie Fenster
+oder Bereich selbst, ist die Automatik aus. Bei jedem Dateidurchlauf werden die Werte neu gesammelt. Zeit bis g³ und
+g⁴ stabil sind (n ≥ 10, ±10 % vom Sollwert), live bei 1×: thermisch cw ≈ 2,3 s, Laser ≈ 1,3 s, thermisch gepulst ≈ 0,6 s.
+
+Einschränkungen: Karten werden nur aufsummiert (kein Abklingen); g³/g⁴ sind die vollen (nicht verbundenen)
+Korrelationen, Fehlerbalken gibt es nur für die Kacheln; snAPI-Quelle liefert keine Einzelereignisse (kein g³/g⁴);
+Binär-Frames brauchen `DecompressionStream` (iOS ≥ 16.4); Kalibrierung braucht ein Merkmal im g² (beim kohärenten
+Laser keine); Kacheln nutzen ein festes, bei τ=0 zentriertes Fenster; GPU-Pfad auf integrierter Grafik langsamer als
+die CPU – dort rechnet automatisch die CPU.
 
 ## Funktionen
 
@@ -159,7 +175,7 @@ bei τ=0 zentriertes Fenster; GPU-Pfad auf integrierter Grafik (AMD Radeon gemes
 
 Version: einzige Quelle `harp/__init__.py` (`__version__`), abrufbar über `/api/health`.
 
-In Version 1.0 kommen die Daten **nicht von einer echten Harp**, sondern aus einer
+Auch in Version 1.3.0 kommen die Daten **nicht von einer echten Harp**, sondern aus einer
 **Messsimulation mit einer `.ptu`-Datei**, die in Echtzeit abgespielt wird.
 
 > Status: funktionsfähiger Prototyp. Die reine Python-Quelle ist vollständig getestet. Die snAPI-Quelle
@@ -187,6 +203,9 @@ In Version 1.0 kommen die Daten **nicht von einer echten Harp**, sondern aus ein
 └───────────────────────────────────────────────────────────┘     └─────────────────────────┘
 ```
 
+* **GX-Prozess** (seit 1.0): Die Ereignisse jedes Frames gehen zusätzlich an einen eigenen Prozess (`harp/gx`), der
+  g²/g³/g⁴ rechnet und Ergebnisse sofort zurückschickt (Push, seit 1.3); zum Handy gehen sie als komprimierte
+  Binär-Frames, nur für die sichtbare Ansicht und im Bandbreiten-Budget.
 * **Kein TTTR-Rohdatenstrom zum Handy**: Histogrammiert wird ausschließlich auf dem Messrechner. Zum Client
   gehen nur die (ggf. zusammengefassten) Histogramm-Arrays, Zählraten und Statusinformationen mit 5–10 Hz.
 * **Takt**: Der Server liest pro Frame `Frame-Intervall × Tempo` Messzeit aus der Quelle (z. B. 150 ms × 1 = 150 ms)
@@ -330,7 +349,7 @@ nur **ein Client steuern** (Knopf „Steuerung übernehmen“; die erste Änderu
 sofern frei). Die Sperre wird beim Trennen oder nach `lock_timeout_s` Inaktivität frei. Alle anderen Clients
 sehen die Daten nur an. Jeder Befehl wird in `logs/commands.jsonl` protokolliert.
 
-| Bedienelement | Bereich (Server-Prüfung) | Simulation (1.0) | Spätere Abbildung am HH500 (snAPI) [ungeprüft] |
+| Bedienelement | Bereich (Server-Prüfung) | Simulation | Spätere Abbildung am HH500 (snAPI) [ungeprüft] |
 |---|---|---|---|
 | Start / Stopp | – | Wiedergabe starten / pausieren | `histogram.measure()` / `stopMeasure()` |
 | Reset | – | Akkumulation + Verlauf löschen | `histogram.clearMeasure()` |
@@ -354,7 +373,7 @@ sehen die Daten nur an. Jeder Befehl wird in `logs/commands.jsonl` protokolliert
    TimeHarp 260 N/P T2/T3, Generic T2/T3 (MultiHarp, PicoHarp 330). **Welchen Record-Typ die HydraHarp 500
    (Beispiel) schreibt, ist nicht verifiziert** [unsicher]; die synthetische Datei verwendet Generic T3 (`0x00010307`).
    Eine echte HH500-Datei sollte als Erstes mit `python tools/crosscheck.py data\meine.ptu` geprüft werden.
-4. Drei Ansichten (Umschalter über dem Diagramm, Handy: „Histo | g² | Zeit“), für T2 und T3 gleichermaßen:
+4. Ansichten Histogramm, Zeitverlauf und Korrelation (g²-Rohkurve) für T2 und T3 gleichermaßen; g³/g⁴ siehe oben:
    * **Histogramm** (Start-Stopp, log): T3 → Mikrozeit (dtime, Start = Sync); T2 → Zeit seit dem letzten
      Ereignis auf dem **Referenzkanal** (ersetzt den Sync; Achse „t nach K1 / ns“, Referenz ohne eigene Kurve).
      T2-Startwert: 1024 Bins über ≈ 10 Sync-Perioden (HBT-Demo: 1,024 ns, 0–1 µs).
@@ -436,7 +455,7 @@ Steuer-Sperre, WebSocket-Ablauf, Anmeldung (Login-Seite, `?token=`, Cookie, Fehl
 Tunnel-Situation (Host/Origin `abc.trycloudflare.com`, `X-Forwarded-Proto`, `CF-Connecting-IP`, fremde Origin); mit installiertem snAPI zusätzlich den Vergleich
 snAPI-Histogramm ↔ eigenes Histogramm.
 
-## 10. Bekannte Einschränkungen (1.0)
+## 10. Bekannte Einschränkungen (1.3.0)
 
 * Keine echte Harp; die Live-Quelle `hh500` ist ein Platzhalter.
 * snAPI-Quelle unter Windows ungetestet. Unter Linux (snAPI 1.2.5) beobachtet: Öffnen einer weiteren Datei im
@@ -448,7 +467,7 @@ snAPI-Histogramm ↔ eigenes Histogramm.
 * Zählraten = Ereignisse im Frame / Messzeit des Frames (keine Totzeitkorrektur). Sync-Rate bei T3 aus der
   Sync-Periode (`MeasDesc_GlobalResolution`) bzw. bei snAPI aus `AveSyncRate`.
 * Marker werden gezählt, aber nicht ausgewertet; keine Imaging-/FLIM-Auswertung, keine Lebensdauer-Fits.
-* JSON-Übertragung (einfach, gut messbar); ein Binärformat würde die Last weiter senken (siehe nächste Schritte).
+* Histogramm-Frames als JSON (einfach, gut messbar); g³/g⁴ als komprimierte Binär-Frames.
 * Einstellungen gelten global für alle Clients (es gibt nur eine Messung).
 
 ## 11. Sicherheit

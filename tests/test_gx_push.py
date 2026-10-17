@@ -1,4 +1,4 @@
-"""g³/g⁴-Frames per Push (seit 1.3.0-dev2): sofort nach jedem Ergebnis, nur die sichtbare Ansicht, Bandbreite je
+"""g³/g⁴-Frames per Push (seit 1.3.0): sofort nach jedem Ergebnis, nur die sichtbare Ansicht, Bandbreite je
 Client begrenzt, Frames ohne unsichtbare Kurven, ehrliche Latenz-Zeitstempel."""
 import asyncio
 import json

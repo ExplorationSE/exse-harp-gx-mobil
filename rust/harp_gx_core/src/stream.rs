@@ -1,4 +1,4 @@
-//! Server-Pfad je Frame (seit 1.3.0-dev): PTU-Dekodierung, T2-Start-Stopp-Histogramm, g²-Kreuzkorrelation zum
+//! Server-Pfad je Frame (seit 1.3.0): PTU-Dekodierung, T2-Start-Stopp-Histogramm, g²-Kreuzkorrelation zum
 //! Referenzkanal und Zählraten. Gleiche Rechenvorschrift wie die NumPy-Fassungen in `harp/ptu.py` und
 //! `harp/histogram.py` (bit-identische Ergebnisse; die Tests vergleichen beide), aber in einem Durchlauf ohne
 //! Zwischenfelder. Eingaben sind C-zusammenhängende Felder (Buffer-Protokoll), Ausgaben vorbelegte Felder.
