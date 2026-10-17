@@ -24,6 +24,8 @@ import numpy as np
 from . import wire
 from .engine import GnConfig, GnEngine
 
+HOLD_EMPTY_S = 0.4   # leeres Ergebnis nach Reset höchstens so lange zurückhalten (dann doch senden, z. B. gestoppt)
+
 
 def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - läuft im Kindprozess
     from . import kernels as K
@@ -36,9 +38,11 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
     newest_in = t_proc = 0.0
     tags_in = 0
     epoch = 0
+    hold_until = 0.0   # nach Reset/Neukalibrierung/Neukonfiguration: leeres Ergebnis kurz zurückhalten
     while True:
         # Ergebnis fällig, aber Mindestabstand noch nicht um: nur so lange warten (nicht pauschal 0,1 s)
-        wait = max(0.0, out_interval_s - (time.monotonic() - last_out)) if dirty else 0.1
+        now = time.monotonic()
+        wait = max(0.0, out_interval_s - (now - last_out), hold_until - now) if dirty else 0.1
         try:
             msgs = [inq.get(timeout=wait)] if wait > 0 else [inq.get_nowait()]
         except queue.Empty:
@@ -70,10 +74,12 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
                 if keep_cal:
                     eng.cal_done, eng.cal_status, eng.cal_missing = cal
                 dirty = True
+                hold_until = time.monotonic() + HOLD_EMPTY_S
             elif kind == "reset":
                 eng.reset(full=m[1])
                 dirty = True
                 newest_stamp = newest_in = t_proc = time.monotonic()   # Stand: direkt nach dem Zurücksetzen
+                hold_until = newest_stamp + HOLD_EMPTY_S
             elif kind == "recal":
                 eng.cfg.delays = {}
                 eng.reset(full=True)
@@ -82,6 +88,7 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
                 eng.clear_geo()
                 dirty = True
                 newest_stamp = newest_in = t_proc = time.monotonic()   # Stand: direkt nach dem Zurücksetzen
+                hold_until = newest_stamp + HOLD_EMPTY_S
             elif kind == "ev":
                 eng.feed(m[1], m[2])
                 newest_stamp = m[3]
@@ -92,8 +99,15 @@ def _worker(inq, outq, out_interval_s: float) -> None:  # pragma: no cover - lä
             eng.process()
             t_proc = time.monotonic()
             dirty = True
+            hold_until = 0.0
         now = time.monotonic()
-        if dirty and now - last_out >= out_interval_s:
+        if dirty and hold_until and now < hold_until:
+            # Ein Ergebnis ohne Daten (direkt nach Reset/Datei-Umlauf) würde in g², g³, g⁴ kurz „–“, „0.0 s“ und leere
+            # Karten zeigen; die ersten Daten folgen im nächsten Frame – so lange warten (höchstens HOLD_EMPTY_S).
+            wait_hold = True
+        else:
+            wait_hold = False
+        if dirty and not wait_hold and now - last_out >= out_interval_s:
             r = eng.result()
             r["wire"] = {"g3": wire.encode_body({"map3": r.pop("map3")}),
                          "g4": wire.encode_body({"cube4": r.pop("cube4")})}

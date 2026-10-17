@@ -290,7 +290,8 @@ class HarpService:
         now = time.monotonic()
         for c in list(self.clients.values()):
             v = c.view if c.view in ("g3", "g4") else "x"
-            if v == "x" and now - c.gx_head_t < GN_HEAD_INTERVAL_S:
+            # g²-Ansicht: Kacheln/Messzeit bei jedem Ergebnis (nur Kopf, ≈ 1–2 kB); Histo/Zeit: Infozeile ≈ 2 Hz
+            if v == "x" and c.view != "corr" and now - c.gx_head_t < GN_HEAD_INTERVAL_S:
                 continue
             if v not in cache:
                 cache[v] = self.gn_frame(v)
@@ -307,10 +308,17 @@ class HarpService:
 
     def gn_send_view(self, c: Client) -> None:
         """Ansichtswechsel: passenden GX-Frame sofort schicken (zählt gegen das Budget, wird aber nie verweigert)."""
-        if c.view in ("g3", "g4") and self.gn_last is not None:
+        if self.gn_last is None:
+            return
+        if c.view in ("g3", "g4"):
             f = self.gn_frame(c.view)
             if f:
                 c.gx_allow(len(f), time.monotonic())
+                c.post_bin(f)
+        else:   # g², Histo, Zeit: Kopf (Kacheln, Hinweise, Infozeile) sofort, nicht erst beim nächsten Takt
+            f = self.gn_frame("x")
+            if f:
+                c.gx_head_t = time.monotonic()
                 c.post_bin(f)
 
     def _gn_sync_geo(self, r: dict | None) -> None:
@@ -516,7 +524,9 @@ class HarpService:
     @staticmethod
     def lite_frame(msg: dict) -> str:
         """Frame ohne Histogramm- und g²-Kurven für Ansichten, die sie nicht zeigen (g³, g⁴, Zeitverlauf)."""
-        m = {k: v for k, v in msg.items() if k not in ("hist", "corr")}
+        # Nur die großen Kurven-Felder fallen weg; Zählraten, Messzeit, Kanäle, Infozeile, Kalibrierung bleiben.
+        # "corr": None (Quelle ohne Korrelation) bleibt erhalten, damit der Hinweis in der g²-Ansicht stimmt.
+        m = {k: v for k, v in msg.items() if not (k == "hist" or (k == "corr" and v is not None))}
         m["lite"] = True
         return json.dumps(m, separators=(",", ":"))
 

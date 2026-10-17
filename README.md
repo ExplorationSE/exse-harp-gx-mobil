@@ -122,6 +122,8 @@ Diese Schritte rechnet jetzt der Rust-Kern (`src/stream.rs`) in einem Durchlauf,
 Die g³/g⁴-CPU-Kerne sind bei breitem Fenster / hohem R·T 17–32 % schneller. Aufschlüsselung je Frame:
 `python tools/profile_frame.py [Datei] [--refresh-ms 150] [--corr-binning 9]`.
 
+**1.3.0-dev3:** g²-Ansicht nach Datei-Umlauf ohne „–“/„0.0 s“ (kein leeres GX-Ergebnis mehr, Kacheln bei jedem Ergebnis); Auswahlfelder zeigen nach der ersten Änderung den gewählten Wert (nicht die erste Option); Browser-Rauchtest `tools/browser_smoke.py`.
+
 **1.3.0-dev2 – kurze g³/g⁴-Latenz:** Der GX-Worker liefert nach jedem Frame ein Ergebnis (Karten im Worker kodiert),
 ein Lese-Thread reicht es sofort an den Server weiter, der es ohne Wartetakt an die Clients schickt – je Client nur
 die sichtbare Karte, höchstens `HARP_GX_KBPS` (Standard 200) kB/s; zu große Frames werden übersprungen, nicht

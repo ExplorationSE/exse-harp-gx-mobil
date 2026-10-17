@@ -159,40 +159,45 @@ function updateCtrl() {
   li.textContent = S.mine ? "Sie haben die Steuerung" :
     (other ? "Nur Anzeige – ein anderes Gerät steuert" : "Änderung übernimmt die Steuerung automatisch");
 }
+// Auswahlfelder: immer den Server-Wert anzeigen. Nur eine eigene, vom Server noch nicht bestätigte Auswahl bleibt
+// bis zur Bestätigung stehen (höchstens SEL_PEND_MS, dann gilt wieder der Server – z. B. wenn der Befehl abgelehnt
+// wurde). Bis 1.3.0-dev2 wurde der Wert bei Fokus im Feld gar nicht gesetzt: baute eine Statusmeldung die Liste neu
+// auf (automatischer Bereich/Fenster fällt bei der ersten Änderung aus der Liste), zeigte das Feld die erste Option
+// (Bereich 5 ns, Fenster 100 ps), obwohl der Server den gewählten Wert hatte.
+const SEL_PEND_MS = 3000;
+function setSel(el, cur) {
+  const v = String(cur), p = el._pend;
+  if (p && p.v !== v && performance.now() - p.t < SEL_PEND_MS && [...el.options].some((o) => o.value === p.v)) {
+    el.value = p.v; return; }
+  el._pend = null;
+  if (el.value !== v) el.value = v;
+}
+function fillSelect(el, key, html, cur) {
+  if (el.dataset.k !== key) { el.innerHTML = html; el.dataset.k = key; }
+  setSel(el, cur);
+}
 function fillControls(st) {
   const s = st.settings, info = st.info || {};
   const fsel = $("file");
   const names = (st.files || []).map((f) => f.name);
-  if (fsel.dataset.k !== names.join("|")) {
-    fsel.innerHTML = names.map((n, i) => `<option value="${n}">${n} (${st.files[i].size_mb} MB)</option>`).join("");
-    fsel.dataset.k = names.join("|");
-  }
-  fsel.value = st.file || "";
+  fillSelect(fsel, names.join("|"), names.map((n, i) => `<option value="${n}">${n} (${st.files[i].size_mb} MB)</option>`).join(""),
+    st.file || "");
   const res = info.resolution_ps || 1, maxb = Math.min(info.max_binning ?? 12, 15);
   const bsel = $("binning"), bk = res + "|" + maxb;
   if (bsel.dataset.k !== bk) {
     let h = ""; for (let b = 0; b <= maxb; b++) { const w = res * 2 ** b;
       h += `<option value="${b}">${fmtWidth(w)}</option>`; }
-    bsel.innerHTML = h; bsel.dataset.k = bk;
+    fillSelect(bsel, bk, h, s.binning);
   }
   const lsel = $("hist_len_code");
   if (!lsel.options.length) for (let c = 0; c <= 7; c++) lsel.add(new Option(String(1024 * 2 ** c) + " Bins", c));
-  for (const k of ["refresh_ms", "speed", "binning", "hist_len_code", "mode", "display_points"]) {
-    const el = $(k); if (document.activeElement !== el) el.value = String(s[k]);
-  }
-  if ($("speed").value !== String(s.speed)) { $("speed").add(new Option(fmtSpeed(s.speed), String(s.speed))); $("speed").value = String(s.speed); }
+  if (![...$("speed").options].some((o) => o.value === String(s.speed))) $("speed").add(new Option(fmtSpeed(s.speed), String(s.speed)));
+  for (const k of ["refresh_ms", "speed", "binning", "hist_len_code", "mode", "display_points"]) setSel($(k), s[k]);
   const nch = info.num_channels || 4, first = info.first_channel ?? 1, ids = chanIds(first, nch), rsel = $("ref_channel");
-  if (rsel.dataset.n !== ids.join(",")) {
-    rsel.innerHTML = ids.map((c) => `<option value="${c}">K${c}</option>`).join("");
-    rsel.dataset.n = ids.join(",");
-  }
-  if (document.activeElement !== rsel) rsel.value = String(s.ref_channel ?? 1);
+  fillSelect(rsel, ids.join(","), ids.map((c) => `<option value="${c}">K${c}</option>`).join(""), s.ref_channel ?? 1);
   const cbase = info.mode === "T3" ? 1 : res, csel = $("corr_binning"), ck = String(cbase);
-  if (csel.dataset.k !== ck) {
-    let h = ""; for (let b = 0; b <= 24; b++) { const w = cbase * 2 ** b; if (w >= 1 && w <= 1e7) h += `<option value="${b}">${fmtWidth(w)}</option>`; }
-    csel.innerHTML = h; csel.dataset.k = ck;
-  }
-  if (document.activeElement !== csel) csel.value = String(s.corr_binning);
+  let ch = ""; if (csel.dataset.k !== ck) for (let b = 0; b <= 24; b++) { const w = cbase * 2 ** b; if (w >= 1 && w <= 1e7) ch += `<option value="${b}">${fmtWidth(w)}</option>`; }
+  fillSelect(csel, ck, ch, s.corr_binning);
   if (document.activeElement !== $("window_frames")) $("window_frames").value = s.window_frames;
   $("window_frames").disabled = s.mode !== "sliding";
   $("loop").checked = s.loop;
@@ -201,6 +206,9 @@ function fillControls(st) {
   renderInfo();
 }
 function bindControls() {
+  // eigene Auswahl merken, bis der Server sie bestätigt (siehe setSel)
+  document.querySelectorAll("#controls select").forEach((el) =>
+    el.addEventListener("change", () => { el._pend = { v: el.value, t: performance.now() }; }));
   $("bStart").onclick = () => command("start");
   $("bStop").onclick = () => command("stop");
   $("bReset").onclick = () => { command("reset"); S.tr = { t: [], r: [] }; };
@@ -346,8 +354,9 @@ function drawLog(kind, chans, rows, x0ps, bwps, m) {
   if (p.u.cursor.idx != null) logReadout(kind, p.u);
 }
 function drawHist(m) {
-  drawLog("hist", m.channels, m.hist, 0, m.bin_width_ps, m);
-  if (m.corr) drawLog("corr", m.corr_channels, m.corr, m.corr_x0_ps, m.corr_bin_ps, m);
+  // je Diagramm getrennt: ein Fehler im Histogramm darf die g²-Kurve nicht verhindern (und umgekehrt)
+  try { drawLog("hist", m.channels, m.hist, 0, m.bin_width_ps, m); } catch (e) { console.error("Histogramm", e); }
+  try { if (m.corr) drawLog("corr", m.corr_channels, m.corr, m.corr_x0_ps, m.corr_bin_ps, m); } catch (e) { console.error("g2", e); }
   S.hist = S.lp.hist && S.lp.hist.u;
   updateHint();
 }
@@ -416,9 +425,9 @@ function renderInfo() {
       + (info.mode === "T2" ? ((info.first_channel ?? 1) === 0 ? " + K0" : "")
         : ", Sync " + fmtRate(info.sync_rate_hz || 0).join(" "))],
     ["Auflösung", (info.resolution_ps || "–") + " ps · Dauer " + (info.duration_s || 0).toFixed(2) + " s"]];
-  if (m) rows.push(["Frame", `#${m.seq} · t = ${m.t_file_s.toFixed(2)} s · ${S.fps.toFixed(1)} fps`],
+  if (m) rows.push(["Frame", `#${m.seq} · t = ${m.t_file_s.toFixed(2)} s · ${S.fps ? S.fps.toFixed(1) : "…"} fps`],
     ["Anzeige", `${m.n_bins} von ${m.n_bins_full} Bins (×${m.rebin_factor}) à ${(m.bin_width_ps / 1000).toFixed(3)} ns`],
-    ["Datenmenge", `${fmtBytes(S.lastBytes || 0)}/Frame · ${S.kBps.toFixed(1)} kB/s empfangen · Server ${m.calc_ms} ms`]);
+    ["Datenmenge", `${fmtBytes(S.lastBytes || 0)}/Frame · ${S.fps ? S.kBps.toFixed(1) : "…"} kB/s empfangen · Server ${m.calc_ms} ms`]);
   const gh = G.head;
   if (gh) {
     const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
@@ -455,12 +464,15 @@ async function inflate(u8) {
   const st = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate"));
   return await new Response(st).arrayBuffer();
 }
+let gxRx = 0, gxShown = 0;   // Empfangsreihenfolge: ein später fertig entpackter älterer Frame überschreibt nichts Neueres
 async function onBinary(buf) {
-  const dv = new DataView(buf);
+  const id = ++gxRx, dv = new DataView(buf);
   if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== "GXF1") return;
   const n = dv.getUint32(4, true);
   const h = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, n)));
   const raw = await inflate(new Uint8Array(buf, 8 + n));
+  if (id < gxShown) return;
+  gxShown = id;
   for (const m of h.arrays) {
     const cnt = m.shape.reduce((a, b) => a * b, 1), q = new Uint16Array(raw, m.offset, cnt), f = new Float32Array(cnt);
     for (let i = 0; i < cnt; i++) f[i] = q[i] ? 10 ** ((q[i] - 1) / 65534 * h.log_span + h.log_lo) : NaN;
@@ -473,9 +485,9 @@ async function onBinary(buf) {
 function fillGnControls(st) {
   const s = st.settings, info = st.info || {};
   const opt = (id, vals, cur) => {
+    // automatisch gewählte Werte (z. B. ±930 ns aus der g²-Breite) stehen zusätzlich in der Liste
     const el = $(id), list = vals.includes(cur) ? vals : [...vals, cur].sort((a, b) => a - b), k = list.join(",");
-    if (el.dataset.k !== k) { el.innerHTML = list.map((v) => `<option value="${v}">${fmtWidth(v)}</option>`).join(""); el.dataset.k = k; }
-    if (document.activeElement !== el) el.value = String(cur);
+    fillSelect(el, k, list.map((v) => `<option value="${v}">${fmtWidth(v)}</option>`).join(""), cur);
   };
   opt("gn_range_ps", [5e3, 1e4, 25e3, 5e4, 1e5, 25e4, 1e6, 25e5, 1e7, 25e6, 1e8], s.gn_range_ps);
   opt("gn_win_ps", [100, 200, 500, 1e3, 2e3, 4e3, 6e3, 1e4, 2e4, 1e5, 5e5, 1e6, 2e6], s.gn_win_ps);
@@ -692,8 +704,9 @@ function drawGnTiles() {
   const mine = h.tiles.filter((t) => t.ch.length === o && t.kind !== "g2h");
   const cur = mine.find((t) => t.ch.join(",") === cmb);
   const low = cur && isLow(cur);
-  big.classList.toggle("low", !!low);
-  big.querySelector(".v").textContent = !cur ? "–" : low ? "sammelt Daten …" : fmtG(cur.g);
+  const waiting = !cur && !mine.length;   // noch keine Kacheln (gerade zurückgesetzt): sammelt, nicht „–“
+  big.classList.toggle("low", !!low || waiting);
+  big.querySelector(".v").textContent = waiting ? "sammelt Daten …" : !cur ? "–" : low ? "sammelt Daten …" : fmtG(cur.g);
   big.querySelector(".e").textContent = !cur ? "" : low ? `n ${fmtCompact(cur.n)} von ≥ 10 · ${h.T_s.toFixed(1)} s` : `± ${cur.err != null ? fmtG(cur.err) : "–"} · n ${fmtCompact(cur.n)}`;
   big.title = h.period_ps > 0 ? "Seitenpeak-normiert (gepulst)" : "auf Zufallskoinzidenzen normiert (Dauerstrich)";
   const her = o <= 3 ? h.tiles.filter((t) => t.kind === "g2h") : [];

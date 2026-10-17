@@ -1,5 +1,43 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.3.0-dev3 – 17.10.2026 (Testversion, Service-Worker-Cache `exse-harp-gx-mobil-1.3.0-dev-r3`)
+
+Zwei Fehler aus dem Test von 1.3.0-dev2 (Herr Eilers, Laptop, `Thermisch_cw`, K1·K2, „Datei wiederholen“).
+
+- **g²-Ansicht: „–“ und „0.0 s“ nach jedem Datei-Umlauf.** Ursache: Seit dev2 liefert der GX-Worker sofort ein
+  Ergebnis. Direkt nach dem Reset beim Umlauf war das ein *leeres* Ergebnis (T = 0, keine Kacheln, leere g³/g⁴-Karten).
+  Die g²-Ansicht bekam den GX-Kopf zudem nur mit ≈ 2 Hz und zeigte dieses leere Ergebnis dann bis zu ≈ 0,6 s lang.
+  Bei der 3-s-Demodatei war das alle 3 s der Fall: große Kachel „–“, Hinweis „… · 0.0 s“. Im selben Moment war die
+  Kurve auf einen Frame (0,15 s) Daten zurückgesetzt.
+  - Behebung: Der Worker hält ein leeres Ergebnis nach Reset, Neukalibrierung oder neuer Geometrie zurück, bis die
+    ersten Daten gerechnet sind (höchstens 0,4 s, `HOLD_EMPTY_S`). Danach wird es doch gesendet, z. B. wenn gestoppt.
+  - Die g²-Ansicht bekommt den Kopf mit Kacheln und Messzeit bei *jedem* Ergebnis (≈ 1,5 kB, ≈ 10 kB/s statt ≈ 3 kB/s)
+    und beim Wechsel in die Ansicht sofort.
+  - Die Kachel zeigt „sammelt Daten …“ statt „–“, solange noch keine Kacheln da sind.
+  - Histogramm und g²-Kurve werden getrennt gezeichnet: Ein Fehler im einen verhindert das andere nicht mehr.
+  - Ein später entpackter, älterer GX-Frame überschreibt keinen neueren mehr.
+  - Schlanke Frames behalten `"corr": null` (Quelle ohne Korrelation).
+  - Geprüft: Schlanke Frames lassen nur `hist` und `corr` weg. Zählraten, Messzeit, Kanäle, Infozeile, Kalibrierung und
+    Laufzeiten bleiben drin; das sichert ein Test ab.
+- **Auswahlfelder: erste Änderung zeigte die erste Option** („Bereich g³/g⁴“ 2,5 µs → Anzeige 5 ns,
+  „Koinzidenzfenster“ 10 ns → 100 ps).
+  - Ursache: Nach dem Start steht der automatisch gewählte Wert (z. B. ±930 ns) zusätzlich in der Liste. Die
+    Statusmeldung nach der Änderung baut die Liste neu auf, ohne ihn. Weil der Fokus noch im Feld war, wurde der Wert
+    absichtlich nicht gesetzt. Das neu aufgebaute Feld zeigte daher die erste Option, während der Server den gewählten
+    Wert hatte. Eine weitere Änderung konnte dann den falschen Wert schicken.
+  - Behebung: Alle Auswahlfelder zeigen immer den Server-Wert. Nur eine eigene, noch unbestätigte Auswahl bleibt bis
+    zur Bestätigung stehen (höchstens 3 s). Betroffen waren auch Binbreite, Binbreite g², Referenzkanal und PTU-Datei,
+    sobald deren Liste neu aufgebaut wurde.
+- **Tests:**
+  - `tests/test_views.py`: Jede Ansicht bekommt, was sie braucht – fünf Clients gleichzeitig. Ende zu Ende mit echtem
+    GX-Worker über alle 20 Ansichtswechsel und mehrere Datei-Umläufe; nie ein leeres GX-Ergebnis.
+  - `tests/test_browser_smoke.py` mit `tools/browser_smoke.py` im Headless-Chromium, Desktop und 390 px:
+    - alle 20 Wechsel, nach Datei-Umlauf, zwei Clients mit Zuschauer-Modus;
+    - Daten kommen an und summieren sich, Kacheln, Hinweise und Infozeile sind gefüllt;
+    - erste Änderung jedes Auswahlfelds.
+  - Der Browser-Test wird ohne Playwright übersprungen, auch in der CI.
+- Infozeile: „… fps“ und „… kB/s“ statt „0.0“ in der ersten Sekunde.
+
 ## 1.3.0-dev2 – 17.10.2026 (Testversion, Service-Worker-Cache `exse-harp-gx-mobil-1.3.0-dev-r2`)
 
 Kürzere g³/g⁴-Latenz. Anlass: Herr Eilers sah mit 1.3.0-dev (Laptop, Browser auf demselben Gerät,
