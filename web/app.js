@@ -25,7 +25,7 @@ const VIEWS = ["hist", "trace", "corr", "g3", "g4"];   // Reihenfolge im Umschal
 const token = new URLSearchParams(location.search).get("token") || "";
 const S = { ws: null, status: null, mine: false, hidden: loadHidden(), view: VIEWS.includes(localStorage.getItem("harp.view")) ? localStorage.getItem("harp.view") : "hist",
   lp: {}, hist: null, trace: null, histKey: "",
-  traceKey: "", tr: { t: [], r: [] }, lastT: -1, frames: 0, fpsT: performance.now(), fps: 0, cmdId: 0,
+  traceKey: "", tr: { t: [], r: [] }, lastT: -1, frames: 0, fpsT: performance.now(), fps: 0, rxB: 0, kBps: 0, rtt: null, gxN: 0, gxHz: 0, cmdId: 0,
   lastFrame: null, pendingCtrl: null };
 
 function loadHidden() { try { return new Set(JSON.parse(localStorage.getItem("harp.hidden") || "[]")); } catch (e) { return new Set(); } }
@@ -93,11 +93,13 @@ function connect() {
   };
   ws.onmessage = (ev) => {
     C.lastRx = Date.now();
+    S.rxB += ev.data instanceof ArrayBuffer ? ev.data.byteLength : ev.data.length;   // empfangene Bytes (alle Nachrichten)
     if (ev.data instanceof ArrayBuffer) { onBinary(ev.data).catch((e) => console.warn("GX-Frame", e)); return; }
     const m = JSON.parse(ev.data);
     if (m.type === "frame") onFrame(m, ev.data.length);
     else if (m.type === "status") onStatus(m);
     else if (m.type === "ack") onAck(m);
+    else if (m.type === "pong" && m.t) { const r = Date.now() - m.t; S.rtt = S.rtt == null ? r : 0.7 * S.rtt + 0.3 * r; }
     else if (m.type === "trace") { S.tr = { t: m.t.slice(-600), r: m.rates.slice(-600).map((r) => r.map((x) => x / 1000)) };
       S.lastT = m.t.length ? m.t[m.t.length - 1] : -1; }
   };
@@ -416,12 +418,12 @@ function renderInfo() {
     ["Auflösung", (info.resolution_ps || "–") + " ps · Dauer " + (info.duration_s || 0).toFixed(2) + " s"]];
   if (m) rows.push(["Frame", `#${m.seq} · t = ${m.t_file_s.toFixed(2)} s · ${S.fps.toFixed(1)} fps`],
     ["Anzeige", `${m.n_bins} von ${m.n_bins_full} Bins (×${m.rebin_factor}) à ${(m.bin_width_ps / 1000).toFixed(3)} ns`],
-    ["Datenmenge", `${fmtBytes(S.lastBytes || 0)}/Frame · ${m.payload_kBps.toFixed(1)} kB/s · Server ${m.calc_ms} ms`]);
+    ["Datenmenge", `${fmtBytes(S.lastBytes || 0)}/Frame · ${S.kBps.toFixed(1)} kB/s empfangen · Server ${m.calc_ms} ms`]);
   const gh = G.head;
   if (gh) {
     const dl = Object.entries(gh.delays || {}).map(([k, v]) => `K${k} ${v >= 0 ? "+" : ""}${(v / 1000).toFixed(2)} ns`).join(", ");
     rows.push(["Laufzeiten", (dl || "keine") + (gh.cal_status === "unnoetig" ? " (vernachlässigbar, g² breit)" : gh.cal_status === "kein_merkmal" ? " (kein Merkmal – ohne Offsets)" : gh.cal_status === "teilweise" ? " (unvollständig)" : gh.cal_done ? "" : " (Kalibrierung läuft)")],
-      ["Rechenkern", `${gh.backend === "gpu" ? "GPU (wgpu" + (gh.gpu_name ? ", " + gh.gpu_name : "") + ")" : (ENGINE_NAME[gh.backend] || gh.backend) + (gh.threads ? " · " + gh.threads + " Threads" : "")} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms · ${fmtBytes(G.bytes || 0)}/Frame${gh.engine_note ? " · " + gh.engine_note : ""}`]);
+      ["Rechenkern", `${gh.backend === "gpu" ? "GPU (wgpu" + (gh.gpu_name ? ", " + gh.gpu_name : "") + ")" : (ENGINE_NAME[gh.backend] || gh.backend) + (gh.threads ? " · " + gh.threads + " Threads" : "")} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms${S.rtt != null ? " + Netz ≈ " + Math.round(S.rtt / 2) + " ms" : ""} · ${fmtBytes(G.bytes || 0)}/Frame${(S.view === "g3" || S.view === "g4") && S.gxHz ? " · " + S.gxHz.toFixed(1) + " Hz" : ""}${gh.engine_note ? " · " + gh.engine_note : ""}`]);
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
   if (st.version) $("appver").textContent = "ExSE Harp GX Mobil " + st.version;
@@ -430,9 +432,15 @@ function renderInfo() {
 }
 let infoTick = 0;
 function onFrame(m, len) {
-  S.lastFrame = m; S.lastBytes = len; S.frames++;
-  const now = performance.now(); if (now - S.fpsT > 1000) { S.fps = S.frames * 1000 / (now - S.fpsT); S.frames = 0; S.fpsT = now; }
-  drawHist(m); drawRates(m); drawTrace(m);
+  // „lite“: ohne Histogramm-/g²-Kurven (Ansichten g³, g⁴, Zeitverlauf) – die zuletzt empfangenen Kurven bleiben
+  const full = !m.lite;
+  S.lastFrame = full || !S.lastFrame ? m : { ...S.lastFrame, ...m, lite: false };
+  S.lastBytes = len; S.frames++;
+  const now = performance.now();
+  if (now - S.fpsT > 1000) { const d = now - S.fpsT; S.fps = S.frames * 1000 / d; S.kBps = S.rxB / d; S.gxHz = S.gxN * 1000 / d;
+    S.frames = 0; S.rxB = 0; S.gxN = 0; S.fpsT = now; }
+  if (full && m.hist) drawHist(m); else updateHint();
+  drawRates(m); drawTrace(m);
   if (++infoTick % 3 === 0) renderInfo();
 }
 // ------------------------------------------------------------------ GX: g³ / g⁴
@@ -458,7 +466,7 @@ async function onBinary(buf) {
     for (let i = 0; i < cnt; i++) f[i] = q[i] ? 10 ** ((q[i] - 1) / 65534 * h.log_span + h.log_lo) : NaN;
     G[m.name] = { v: f, nb: m.shape[0] };
   }
-  G.head = h; G.bytes = buf.byteLength;
+  G.head = h; G.bytes = buf.byteLength; if (h.arrays.length) S.gxN++;
   if (S.view === "g3" || S.view === "g4") { showGnBar(); buildGnBar(); drawGn(); }
   else if (S.view === "corr" && showGnBar()) { buildGnBar(); drawGnTiles(); }
 }

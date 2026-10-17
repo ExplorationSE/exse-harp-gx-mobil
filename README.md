@@ -122,6 +122,15 @@ Diese Schritte rechnet jetzt der Rust-Kern (`src/stream.rs`) in einem Durchlauf,
 Die g³/g⁴-CPU-Kerne sind bei breitem Fenster / hohem R·T 17–32 % schneller. Aufschlüsselung je Frame:
 `python tools/profile_frame.py [Datei] [--refresh-ms 150] [--corr-binning 9]`.
 
+**1.3.0-dev2 – kurze g³/g⁴-Latenz:** Der GX-Worker liefert nach jedem Frame ein Ergebnis (Karten im Worker kodiert),
+ein Lese-Thread reicht es sofort an den Server weiter, der es ohne Wartetakt an die Clients schickt – je Client nur
+die sichtbare Karte, höchstens `HARP_GX_KBPS` (Standard 200) kB/s; zu große Frames werden übersprungen, nicht
+verzögert. In den Ansichten g³/g⁴/Zeitverlauf kommen die Frames ohne Histogrammkurven. „Latenz“ in der Info-Zeile =
+Ende der Messzeit des neuesten Frames → Übergabe an die Sende-Warteschlange des Clients, dahinter „+ Netz ≈“ (halbe
+Ping-Laufzeit); nicht enthalten sind Zeichnen im Browser und die Frame-Dauer selbst. Box, `Thermisch_cw`, g⁴:
+Frame-Ende → Client median 306 → 22 ms, 1,6 → 5,8 Hz bei gleicher Bandbreite (≈ 210 kB/s).
+Messung: `python tools/latency_gx.py [Datei] [--view g4] [--clients 3]`.
+
 **0.2.1:** Fenster und Bereich werden bei cw einmalig nach 0,5 s automatisch gewählt. Bei einem breiten Merkmal
 im g² (FWHM ≥ 50 ns) gilt Fenster = FWHM/6 und Bereich = ±3·FWHM. Ohne Merkmal (Laser) wird das Fenster nach
 Statistik gewählt (≈ 100 Quadrupel/s). Bei schmalen Merkmalen (Antibunching, Heralded, HOM) bleiben ±25 ns / 2 ns.

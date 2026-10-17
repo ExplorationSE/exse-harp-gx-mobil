@@ -5,6 +5,7 @@ import asyncio
 import hmac
 import json
 import logging
+import os
 import time
 import uuid
 from collections import deque
@@ -36,7 +37,15 @@ WEB_DIR = BASE_DIR / "web"
 
 
 SEND_TIMEOUT_S = 5.0     # länger hängendes Senden → Verbindung gilt als tot und wird geschlossen
-GN_SEND_INTERVAL_S = 0.5   # g³/g⁴-Frames ≈ 2 Hz
+# g³/g⁴ (seit 1.3.0-dev2): Der Worker liefert nach jedem Frame ein Ergebnis, der Server schickt es sofort weiter
+# (Push statt Abfragen im Takt). Je Client nur die sichtbare Ansicht; Bandbreite je Client per Token-Bucket
+# begrenzt (HARP_GX_KBPS, Standard 200 kB/s): passt ein Frame nicht ins Budget, wird er übersprungen und der
+# nächste, frische gesendet – die Latenz bleibt kurz, nur die Bildrate sinkt.
+GN_OUT_MIN_S = 0.05        # Worker: höchstens 20 Ergebnisse/s
+GN_HEAD_INTERVAL_S = 0.5   # Ansichten ohne g³/g⁴-Karte: nur Kopf (Kacheln, Rechenkern) ≈ 2 Hz
+GN_KBPS = float(os.environ.get("HARP_GX_KBPS") or 200.0)
+GN_BURST_S = 1.0           # Token-Bucket: höchstens 1 s Budget ansparen
+LITE_VIEWS = ("g3", "g4", "trace")   # Frames ohne Histogramm-/g²-Kurven (unsichtbar in diesen Ansichten)
 MAX_QUEUED = 200         # mehr wartende Einzelnachrichten (Quittungen, Pong) → Client hängt
 
 
@@ -62,6 +71,9 @@ class Client:
         self._frame: str | None = None
         self._bin: bytes | None = None
         self.view = "hist"
+        self.gx_tokens = 0.0          # Token-Bucket für g³/g⁴-Frames (Bytes)
+        self.gx_t = time.monotonic()
+        self.gx_head_t = 0.0          # letzter reiner Kopf-Frame (Ansichten ohne Karte)
         self._wake = asyncio.Event()
         self._on_dead = on_dead
         self.task: asyncio.Task | None = None
@@ -98,6 +110,16 @@ class Client:
             self.dropped += 1
         self._bin = data
         self._wake.set()
+
+    def gx_allow(self, size: int, now: float, kbps: float = 0.0) -> bool:
+        """Token-Bucket: darf ein g³/g⁴-Frame dieser Größe jetzt raus? (Mittel ≤ kbps, Schulden erlaubt)."""
+        rate = (kbps or GN_KBPS) * 1000.0
+        self.gx_tokens = min(rate * GN_BURST_S, self.gx_tokens + (now - self.gx_t) * rate)
+        self.gx_t = now
+        if self.gx_tokens < 0:
+            return False
+        self.gx_tokens -= size
+        return True
 
     def _next(self) -> str | bytes | None:
         if self._queue:
@@ -175,16 +197,29 @@ class HarpService:
         self.bytes_hist: list[tuple[float, int]] = []
         self.last_frame_info: dict[str, Any] = {}
         # GX: Korrelationen höherer Ordnung im Worker-Prozess
-        self.gn = GnRunner(GN_SEND_INTERVAL_S)
+        self.gn = GnRunner(GN_OUT_MIN_S)
         self.gn_period_ps = 0.0
         self.gn_user_geom = False   # Nutzer hat Fenster/Bereich gesetzt → keine automatische Wahl
-        self.gn_last_sent = 0.0
         self.gn_last_bytes = 0
+        self._frame_msg: dict | None = None   # letzter Frame (für Ansichtswechsel ohne laufende Messung)
         self.gn_last: dict | None = None
 
     def gn_start(self) -> None:
         if self.cfg.gx_enabled and not self.gn.alive:
-            self.gn.start()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is None:
+                self.gn.start()
+            else:   # Push: Lese-Thread weckt die Ereignisschleife, sobald ein Ergebnis da ist
+                self.gn.start(notify=lambda: loop.call_soon_threadsafe(self._gn_on_result))
+
+    def _gn_on_result(self) -> None:
+        if self.gn.poll() is not None:
+            self.gn_last = self.gn.latest
+            self._gn_sync_geo(self.gn_last)
+            self.gn_broadcast()
 
     def _gn_channels(self) -> list[int]:
         if not self.info:
@@ -223,6 +258,8 @@ class HarpService:
                   "n": int(t["n"]), "err": (None if t["err"] is None else round(float(t["err"]), 5)),
                   "kind": t.get("kind", "g"), "low": bool(t.get("low", False))} for t in r["tiles"]]
         st = r["stats"]
+        now = time.monotonic()
+        t_frame = r.get("t_frame", r.get("stamp"))
         head = {"type": "gn", "view": view, "T_s": round(r["T_s"], 4), "tiles": tiles,
                 "combo3": list(s.combo3), "combo4": list(s.combo4), "range_ps": r["range_ps"],
                 "range4_ps": r["range4_ps"], "bw3_ps": r["bw3_ps"], "bw4_ps": r["bw4_ps"],
@@ -231,27 +268,50 @@ class HarpService:
                 "cal_status": r.get("cal_status", "vorgegeben"), "cal_missing": r.get("cal_missing", []), "geo": r.get("geo"),
                 "backend": r["backend"], "threads": r.get("threads") or self.gn.info.get("threads"),
                 "engine_note": r.get("engine_note", ""), "gpu_name": r.get("gpu_name"),
-                "latency_ms": round(r.get("latency_s", 0) * 1000, 1),
+                # Latenz: Ende der Messzeit des neuesten enthaltenen Frames → Übergabe an die Sendewarteschlange
+                "latency_ms": round((now - t_frame) * 1000, 1) if t_frame else round(r.get("latency_s", 0) * 1000, 1),
+                "t_frame": t_frame, "t_in": r.get("t_in"), "t_proc": r.get("t_proc"), "t_res": r.get("t_res"), "t_srv": r.get("t_srv"), "t_send": now,
                 "proc_mtags": round(st["tags"] / st["proc_s"] / 1e6, 2) if st.get("proc_s") else None,
                 "last_ms": round(st.get("last_ms", 0), 2), "backlog": r.get("backlog", 0),
                 "payload_bytes_prev": self.gn_last_bytes}
+        pre = r.get("wire")
+        if view in ("g3", "g4") and pre is not None:   # im Worker vorkodiert
+            return gxwire.assemble(head, *pre[view])
         arrays: dict[str, np.ndarray] = {}
-        if view == "g3":
+        if view == "g3" and "map3" in r:
             arrays["map3"] = r["map3"]
-        elif view == "g4":
+        elif view == "g4" and "cube4" in r:
             arrays["cube4"] = r["cube4"]
         return gxwire.encode(head, arrays)
 
     def gn_broadcast(self) -> None:
+        """Neues GX-Ergebnis an alle Clients: g³/g⁴-Ansicht sofort (im Bandbreiten-Budget), sonst nur der Kopf ≈ 2 Hz."""
         cache: dict[str, bytes | None] = {}
+        now = time.monotonic()
         for c in list(self.clients.values()):
             v = c.view if c.view in ("g3", "g4") else "x"
+            if v == "x" and now - c.gx_head_t < GN_HEAD_INTERVAL_S:
+                continue
             if v not in cache:
                 cache[v] = self.gn_frame(v)
                 if cache[v] is not None and v != "x":
                     self.gn_last_bytes = len(cache[v])
-            if cache[v] is not None:
-                c.post_bin(cache[v])
+            b = cache[v]
+            if b is None:
+                continue
+            if v == "x":
+                c.gx_head_t = now
+                c.post_bin(b)
+            elif c.gx_allow(len(b), now):
+                c.post_bin(b)
+
+    def gn_send_view(self, c: Client) -> None:
+        """Ansichtswechsel: passenden GX-Frame sofort schicken (zählt gegen das Budget, wird aber nie verweigert)."""
+        if c.view in ("g3", "g4") and self.gn_last is not None:
+            f = self.gn_frame(c.view)
+            if f:
+                c.gx_allow(len(f), time.monotonic())
+                c.post_bin(f)
 
     def _gn_sync_geo(self, r: dict | None) -> None:
         """Automatisch gewähltes Fenster/Bereich (cw) in die Einstellungen übernehmen."""
@@ -386,7 +446,7 @@ class HarpService:
                     self.gn_reset(True)   # Zeitachse springt zurück: Puffer leeren, Laufzeiten behalten
                 ev = getattr(fr, "events", None)
                 if ev is not None:
-                    self.gn.feed(ev[0], ev[1])
+                    self.gn.feed(ev[0], ev[1], t0)   # t0 ≈ Ende der Messzeit dieses Frames
                 total = self.acc.add(fr)
                 if fr.corr is not None:
                     self.cacc.add_array(fr.corr, fr.meas_time_s)
@@ -395,13 +455,8 @@ class HarpService:
                 self.rates.add(fr.t_file_s, rates)
                 calc_ms = (time.monotonic() - t0) * 1000
                 await self.broadcast_frame(total, fr, rates, sync_rate, calc_ms)
-                if self.gn.poll() is not None:
-                    self.gn_last = self.gn.latest
-                    self._gn_sync_geo(self.gn_last)
-                now = time.monotonic()
-                if self.gn_last is not None and now - self.gn_last_sent >= GN_SEND_INTERVAL_S:
-                    self.gn_last_sent = now
-                    self.gn_broadcast()
+                if self.gn._reader is None:   # ohne Lese-Thread (z. B. Tests ohne Ereignisschleife): abfragen
+                    self._gn_on_result()
                 dt = s.refresh_ms / 1000.0 - (time.monotonic() - t0)
                 await asyncio.sleep(max(0.0, dt))
         except asyncio.CancelledError:
@@ -455,15 +510,29 @@ class HarpService:
         self.bytes_hist.append((now, self.last_bytes))
         self.last_frame_info = {k: msg[k] for k in ("seq", "t_file_s", "n_bins", "bin_width_ps",
                                                     "payload_bytes_prev", "payload_kBps")}
+        self._frame_msg = msg
         return txt
+
+    @staticmethod
+    def lite_frame(msg: dict) -> str:
+        """Frame ohne Histogramm- und g²-Kurven für Ansichten, die sie nicht zeigen (g³, g⁴, Zeitverlauf)."""
+        m = {k: v for k, v in msg.items() if k not in ("hist", "corr")}
+        m["lite"] = True
+        return json.dumps(m, separators=(",", ":"))
 
     async def broadcast_frame(self, total, fr, rates, sync_rate, calc_ms) -> None:
         if not self.clients:
             self.seq += 1
             return
         txt = self.build_frame(total, fr, rates, sync_rate, calc_ms)
+        lite = None
         for c in list(self.clients.values()):
-            c.post_frame(txt)   # kehrt sofort zurück; Senden im Task des Clients
+            if c.view in LITE_VIEWS and self._frame_msg is not None:
+                if lite is None:
+                    lite = self.lite_frame(self._frame_msg)
+                c.post_frame(lite)
+            else:
+                c.post_frame(txt)   # kehrt sofort zurück; Senden im Task des Clients
 
     def remove_client(self, c: Client) -> None:
         """Client abmelden (getrennt oder wegen Hängens geschlossen); gibt ggf. die Steuerung frei."""
@@ -731,11 +800,10 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                     c.post(json.dumps(ack))
                     svc.post_status_all()
                 elif msg.get("type") == "view":
-                    c.view = str(msg.get("v", ""))[:8]
-                    if c.view in ("g3", "g4") and svc.gn_last is not None:
-                        f = svc.gn_frame(c.view)
-                        if f:
-                            c.post_bin(f)
+                    old_view, c.view = c.view, str(msg.get("v", ""))[:8]
+                    svc.gn_send_view(c)
+                    if old_view in LITE_VIEWS and c.view not in LITE_VIEWS and svc._frame_msg is not None:
+                        c.post_frame(json.dumps(svc._frame_msg, separators=(",", ":")))   # Kurven sofort nachliefern
                 elif msg.get("type") == "ping":
                     c.post(json.dumps({"type": "pong", "t": msg.get("t")}))
         except (WebSocketDisconnect, RuntimeError):

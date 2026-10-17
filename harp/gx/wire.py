@@ -33,7 +33,8 @@ def dequantize(q: np.ndarray) -> np.ndarray:
     return g
 
 
-def encode(header: dict, arrays: dict[str, np.ndarray]) -> bytes:
+def encode_body(arrays: dict[str, np.ndarray]) -> tuple[list, bytes]:
+    """Nutzdaten (quantisiert, zlib) und Feldbeschreibung – kann vorab im GX-Worker laufen."""
     parts, meta, off = [], [], 0
     for name, a in arrays.items():
         q = quantize(a)
@@ -41,10 +42,17 @@ def encode(header: dict, arrays: dict[str, np.ndarray]) -> bytes:
         meta.append({"name": name, "shape": list(q.shape), "offset": off})
         parts.append(b)
         off += len(b)
+    return meta, zlib.compress(b"".join(parts), 1)   # Stufe 1: ~3× schneller als 6, kaum größer
+
+
+def assemble(header: dict, meta: list, body: bytes) -> bytes:
     header = dict(header, arrays=meta, enc="log16", log_lo=LOG_LO, log_span=LOG_SPAN)
     h = json.dumps(header, separators=(",", ":"), default=_json).encode()
-    body = zlib.compress(b"".join(parts), 1)   # Stufe 1: ~3× schneller als 6, kaum größer
     return b"GXF1" + struct.pack("<I", len(h)) + h + body
+
+
+def encode(header: dict, arrays: dict[str, np.ndarray]) -> bytes:
+    return assemble(header, *encode_body(arrays))
 
 
 def decode(buf: bytes) -> tuple[dict, dict[str, np.ndarray]]:

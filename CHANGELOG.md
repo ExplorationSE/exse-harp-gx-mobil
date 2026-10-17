@@ -1,5 +1,44 @@
 # Änderungsprotokoll – ExSE Harp GX Mobil
 
+## 1.3.0-dev2 – 17.10.2026 (Testversion, Service-Worker-Cache `exse-harp-gx-mobil-1.3.0-dev-r2`)
+
+Kürzere g³/g⁴-Latenz. Anlass: Herr Eilers sah mit 1.3.0-dev (Laptop, Browser auf demselben Gerät,
+`Thermisch_cw`, ±900 ns, 50 ns, Ansicht g⁴) „Server 12,79 ms“, 6,4 fps und „Latenz 160,4 ms · 44,8 kB/Frame“.
+
+- **Wo die Latenz entstand** (neu: `tools/latency_gx.py`, echter Server mit WebSocket-Client, alle Zeitpunkte aus
+  `time.monotonic()`; Box, Ansicht g⁴, Median / p90 / max):
+  - GX-Rechnung selbst: Server-Frame → Worker ≈ 10 ms, `process` ≈ 7 ms, Normierung + Kodierung ≈ 2 ms.
+  - Abholen: Die Server-Schleife sah nur einmal je Frame nach, also erst im nächsten Durchlauf → ≈ 150 ms.
+  - Sendetakt 0,5 s gegen 150-ms-Schleife → Frames nur alle 600–900 ms (1,6 Hz), Wartezeit 150 / 303 / 454 ms.
+  - Gesamt (Ende der Messzeit → beim Client): 306 / 459 / 611 ms. Die alte Anzeige „Latenz“ (≈ 154 ms) zählte nur
+    bis zum Abholen, nicht die Wartezeit bis zum Senden.
+- **Push statt Abfragen:** Ein Lese-Thread holt jedes Ergebnis sofort aus der Worker-Queue und weckt die
+  Ereignisschleife; der Server schickt es gleich weiter. Der Worker liefert nach jedem gerechneten Frame ein
+  Ergebnis (höchstens 20/s) und wartet nicht mehr pauschal 0,1 s, wenn eines fällig ist.
+- **Kodierung im Worker:** Die Karten g³/g⁴ werden im Worker quantisiert und komprimiert (dieselben Bytes wie vorher
+  im Server, `wire.encode_body`); über die Queue gehen ≈ 50 kB statt ≈ 420 kB float64, der Server setzt nur den Kopf davor.
+- **Nur die sichtbare Ansicht:** g³-Clients bekommen nur `map3`, g⁴-Clients nur `cube4`, alle anderen nur den Kopf
+  (Kacheln, Rechenkern) ≈ 2 Hz wie bisher. In den Ansichten g³, g⁴ und Zeitverlauf kommen die Frames ohne
+  Histogramm- und g²-Kurven („lite“, ≈ 0,5 kB statt ≈ 25 kB); beim Wechsel zurück schickt der Server den letzten
+  vollständigen Frame sofort.
+- **Bandbreite je Client begrenzt:** Token-Bucket, Standard 200 kB/s für g³/g⁴-Frames (`HARP_GX_KBPS`). Passt ein
+  Frame nicht ins Budget, wird er übersprungen und der nächste frische gesendet – die Latenz bleibt kurz, nur die
+  Bildrate sinkt. Langsame Handys überspringen wie bisher (Sende-Warteschlange je Client, latest-only; 1.0.6).
+- **Ehrliche Latenz:** „Latenz“ in der Info-Zeile = Ende der Messzeit des neuesten enthaltenen Frames bis zur Übergabe
+  an die Sende-Warteschlange dieses Clients (Server-Rechnung, Worker, Kodierung, Warten). Dahinter zeigt die App
+  „+ Netz ≈ … ms“ (halbe Ping-Laufzeit). Nicht enthalten: Entpacken/Zeichnen im Browser und die Frame-Dauer selbst
+  (Ereignisse am Frame-Anfang sind bis zu einer Frame-Dauer, 150 ms, älter). Neu dahinter: die empfangene g³/g⁴-Bildrate
+  in Hz; „Datenmenge … kB/s“ zählt jetzt alle beim Gerät angekommenen Bytes. Die Zeitstempel stehen im Kopf jedes
+  Frames (`t_frame`, `t_in`, `t_proc`, `t_res`, `t_srv`, `t_send`).
+- **Messung Box (Thermisch_cw, 150-ms-Frames, 1 Client, Median / p90 / max), vorher → nachher:**
+  - Ansicht g⁴ gesamt Frame-Ende → Client: 306 / 459 / 459 ms → 22 / 26 / 63 ms; Info-Zeile 154 → 22 ms.
+  - g⁴-Bildrate 1,55 → 5,8 Hz (Budget), g³ 1,6 → 6,9 Hz; Abstand der g⁴-Frames 606 → 151 ms (Median).
+  - Bandbreite je Client in Ansicht g⁴: 56 kB/s (g⁴) + 163 kB/s (Histogramm-Frames) = 218 kB/s →
+    205 + 3,5 = 208 kB/s; in Ansicht g³: 30 + 163 = 193 → 122 + 3,5 = 126 kB/s. Ansicht Histogramm unverändert.
+  - Drei Clients gleichzeitig in g⁴: 22 / 28 / 65 ms, je 207 kB/s.
+- Ergebnisse unverändert (gleiche Rechnung, gleiche Kodierung). Neue Tests `tests/test_gx_push.py`.
+- Version 1.3.0-dev2 (Python); Rust-Kern unverändert 1.3.0-dev.
+
 ## 1.3.0-dev – 17.10.2026 (Testversion)
 
 Schnellere CPU-Pfade, Anlass: auf dem Laptop von Herrn Eilers zeigte die Info-Zeile bei `Thermisch_cw`

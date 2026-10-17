@@ -78,6 +78,9 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
    (Meldung „Installiere Rust-Rechenkern harp_gx_core-…whl …“). Fehlt das Wheel oder passt es nicht, rechnet
    das Programm mit Numba weiter – genauso richtig, nur etwas langsamer. Der aktive Kern steht in der App in der
    Info-Zeile „Rechenkern“, z. B. „Rust (rayon) · 4 Threads · … Mtags/s“.
+   „Latenz … ms“ dahinter: Zeit vom Ende der Messzeit des neuesten Frames bis zum Absenden an Ihr Gerät,
+   „+ Netz ≈ … ms“ die geschätzte Übertragungszeit (halbe Ping-Laufzeit). Ab Version 1.3.0-dev2 kommen die
+   g³/g⁴-Bilder nach jedem Frame (bis ≈ 6 pro Sekunde, je nach Datenmenge), sonst ≈ 2 pro Sekunde.
    Ab Version 1.2 enthält der Rust-Rechenkern zusätzlich einen GPU-Pfad (DirectX 12 / Vulkan, auch für
    Intel- und AMD-Grafik). Beim Start wird die Grafik geprüft und mit der CPU verglichen; die GPU rechnet nur, wenn sie für
    die aktuelle Messung schneller ist. Dann steht dort z. B. „GPU (wgpu, AMD Radeon(TM) Graphics) · … Mtags/s“,
