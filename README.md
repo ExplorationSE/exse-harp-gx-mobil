@@ -253,11 +253,11 @@ Voraussetzungen: Windows 10/11 (64 Bit), Internet für die einmalige Installatio
 
 1. **Python 3.13 (64 Bit)** von <https://www.python.org/downloads/> installieren („Add python.exe to PATH“ ankreuzen).
    PicoQuant empfiehlt in der snAPI-Installationsanleitung Python 3.13; snAPI selbst verlangt Python ≥ 3.10.
-2. Programm-Zip entpacken, z. B. nach `C:\Harp\` (ergibt `C:\Harp\harp-gx-mobil`).
+2. Programm-Zip entpacken, z. B. nach `C:\HarpGXMobil\` (ergibt `C:\HarpGXMobil\harp-gx-mobil`).
 3. Doppelklick auf **`install_windows.bat`** (sucht Python, legt `.venv` an, installiert `requirements.txt`) –
    oder manuell in der Eingabeaufforderung:
    ```bat
-   cd C:\Harp\harp-gx-mobil
+   cd C:\HarpGXMobil\harp-gx-mobil
    py -3.13 -m venv .venv
    .venv\Scripts\activate
    pip install -r requirements.txt

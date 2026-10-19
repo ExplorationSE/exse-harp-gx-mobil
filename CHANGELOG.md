@@ -11,7 +11,7 @@ Umbenennung, keine Funktionsänderung.
   „Harp GX Mobil“ (Kurzname im Manifest unverändert).
 - GitHub-Repository umbenannt in `ExplorationSE/harp-gx-mobil` (alte Adresse leitet weiter);
   Download-Dateien heißen jetzt `harp-gx-mobil-…zip`, der Ordner im Programm-Zip `harp-gx-mobil`.
-  Vorschlag für den Installationsordner in Anleitung und README: `C:\Harp\` (bisher `C:\ExSE\`);
+  Installationsordner in Anleitung und README: `C:\HarpGXMobil\` (bisher `C:\ExSE\`);
   bestehende Installationen funktionieren an ihrem Ort unverändert weiter.
 - Rust-Kern `harp_gx_core` 1.3.1: nur Paketbeschreibung geändert, Rechencode unverändert.
 - Service-Worker-Cache `harp-gx-mobil-1.3.1-r1` (alte Caches werden beim Aktivieren gelöscht). Die gespeicherten

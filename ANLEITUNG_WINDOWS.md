@@ -59,11 +59,11 @@ Ihr Windows-PC:  cloudflared.exe  ──►  Harp-GX-Mobil-Server  http://127.0.
 ## 3. Paket entpacken
 
 1. Speichern Sie `harp-gx-mobil-<Version>-programm.zip` und die Daten-Zips z. B. im Ordner „Downloads“.
-2. Rechtsklick → **„Alle extrahieren…“** → Ziel z. B. `C:\Harp` (kurzer Pfad ohne Sonderzeichen empfohlen).
-3. Danach gibt es den Ordner `C:\Harp\harp-gx-mobil` mit u. a. `install_windows.bat`, `start_online.bat`,
+2. Rechtsklick → **„Alle extrahieren…“** → Ziel z. B. `C:\HarpGXMobil` (kurzer Pfad ohne Sonderzeichen empfohlen).
+3. Danach gibt es den Ordner `C:\HarpGXMobil\harp-gx-mobil` mit u. a. `install_windows.bat`, `start_online.bat`,
    `stop_online.bat`, `start_server.bat`, `LIESMICH.txt` und `README.md`.
 4. Die neun Demodateien `Demo_Synthetisch_T2_*.ptu` aus den Daten-Zips (daten-1 bis daten-8) direkt in
-   `C:\Harp\harp-gx-mobil\data\` legen (ohne Unterordner).
+   `C:\HarpGXMobil\harp-gx-mobil\data\` legen (ohne Unterordner).
 
 > Tipp: Falls Windows beim Öffnen der ZIP-Datei warnt, können Sie vor dem Entpacken Rechtsklick auf die ZIP →
 > **Eigenschaften** → unten **„Zulassen“** anhaken → OK. Dann erscheinen später weniger Warnungen.
