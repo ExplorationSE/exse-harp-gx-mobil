@@ -1,4 +1,4 @@
-﻿# ExSE Harp GX Mobil - beendet Server und Cloudflare-Tunnel, die mit start_online gestartet wurden.
+﻿# ExplorationSE Harp GX Mobil - beendet Server und Cloudflare-Tunnel, die mit start_online gestartet wurden.
 param([int]$Port = 8765, [switch]$Quiet)
 $ErrorActionPreference = 'SilentlyContinue'
 $root = $PSScriptRoot

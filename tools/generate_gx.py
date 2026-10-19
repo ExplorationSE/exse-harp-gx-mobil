@@ -1,4 +1,4 @@
-"""Synthetische T2-PTU-Dateien mit analytisch bekanntem g⁽²⁾, g⁽³⁾, g⁽⁴⁾ (ExSE Harp GX Mobil).
+"""Synthetische T2-PTU-Dateien mit analytisch bekanntem g⁽²⁾, g⁽³⁾, g⁽⁴⁾ (ExplorationSE Harp GX Mobil).
 
 Alle Dateien: Generic-T2-Records, Auflösung 1 ps, Kanäle K1…K4 (Strahlteiler-Baum auf 4 Detektoren),
 beim Herald-Szenario K0 = Herald-Detektor am Sync-Eingang. Die erwarteten Werte stehen in

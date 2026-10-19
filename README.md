@@ -1,6 +1,6 @@
-# ExSE Harp GX Mobil
+# ExplorationSE Harp GX Mobil
 
-[![Tests](https://github.com/ExplorationSE/exse-harp-gx-mobil/actions/workflows/tests.yml/badge.svg)](https://github.com/ExplorationSE/exse-harp-gx-mobil/actions/workflows/tests.yml)
+[![Tests](https://github.com/ExplorationSE/harp-gx-mobil/actions/workflows/tests.yml/badge.svg)](https://github.com/ExplorationSE/harp-gx-mobil/actions/workflows/tests.yml)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
 
 Live-Histogramme, Korrelationen g²/g³/g⁴ und Zählraten für eine PicoQuant **Harp** (z. B. HydraHarp 500, MultiHarp,
@@ -22,7 +22,7 @@ Steuerung im Browser (PWA); derzeit **Simulation aus PTU-Dateien, noch ohne Ger�
 >   PicoQuant, HydraHarp, MultiHarp, PicoHarp, TimeHarp, snAPI und SymPhoTime sind Marken ihrer jeweiligen Inhaber.
 > - **Ohne Gewährleistung** (MIT-Lizenz); nicht für sicherheitskritische Anwendungen bestimmt.
 
-**Download:** [aktuelle Version (Programm, Demodaten, Anleitung als PDF)](https://github.com/ExplorationSE/exse-harp-gx-mobil/releases/latest)
+**Download:** [aktuelle Version (Programm, Demodaten, Anleitung als PDF)](https://github.com/ExplorationSE/harp-gx-mobil/releases/latest)
 · Änderungen: [`CHANGELOG.md`](CHANGELOG.md) · Lizenz: [MIT](#13-lizenz)
 
 <p>
@@ -32,13 +32,14 @@ Steuerung im Browser (PWA); derzeit **Simulation aus PTU-Dateien, noch ohne Ger�
   <img src="docs/screenshot-gx-histo.png" alt="Histogramm-Ansicht mit Kanaltasten K1–K4" width="190">
 </p>
 
-## ExSE Harp GX Mobil – Ziel und Stand
+## ExplorationSE Harp GX Mobil – Ziel und Stand
 
-**ExSE Harp GX Mobil** ist der Leistungszweig von [ExSE Harp Mobil](https://github.com/ExplorationSE/exse-harp-mobil)
+**ExplorationSE Harp GX Mobil** ist der Leistungszweig von [ExplorationSE Harp Mobil](https://github.com/ExplorationSE/harp-mobil)
 (Ausgangsbasis: Mobil 1.0.6, Commit `ffec0b3`; Mobil selbst bleibt unverändert). Ziel: Korrelationen höherer Ordnung
 **g⁽²⁾, g⁽³⁾, g⁽⁴⁾** aus T2-Zeitmarken in Echtzeit, mit schnellem Rechenkern und Anzeige auf dem Handy.
 
-**Version 1.3.0 (dieser Stand):**
+**Version 1.3.1 (dieser Stand):** Umbenennung von „ExSE Harp GX Mobil“ in **ExplorationSE Harp GX Mobil**, neue
+Repository-Adresse <https://github.com/ExplorationSE/harp-gx-mobil> (die alte Adresse leitet weiter); Funktionen wie 1.3.0:
 - Fünf Ansichten **Histo | Zeit | g² | g³ | g⁴** mit großer Kachel g²(0) / g³(0,0) / g⁴(0,0,0), Kachelliste aller
   Kanal-Kombinationen, Heralded g²ₕ (K0 als Herald) und grauen Hinweisen. Die g³/g⁴-Karten haben eine log. Farbskala.
 - Rechenkern `harp_gx_core` in Rust (CPU, rayon) mit GPU-Pfad (wgpu); Rückfall auf Numba bzw. NumPy, alle bitgleich.
@@ -91,7 +92,7 @@ Die g³/g⁴-Histogramme rechnet ein eigener GX-Prozess (`harp/gx`), damit die S
 Alle Kerne liefern bitgleiche Ergebnisse (Tests gegen `harp/gn.py`, alle 9 Demodateien).
 
 - **Rust-Kern `harp_gx_core`** (PyO3/rayon, `rust/harp_gx_core`, seit 1.1). Unter Windows liegt das fertige Wheel
-  `harp_gx_core-1.3.0-cp311-abi3-win_amd64.whl` im Programm-Zip unter `wheels\`; `install_windows.bat` installiert es.
+  `harp_gx_core-1.3.1-cp311-abi3-win_amd64.whl` im Programm-Zip unter `wheels\`; `install_windows.bat` installiert es.
   Ein Compiler ist nicht nötig. Ohne Wheel rechnet Numba.
 - **Server-Pfad im Rust-Kern** (seit 1.3, `src/stream.rs`): PTU-Dekodierung, T2-Start-Stopp-Histogramm,
   g²-Kreuzkorrelation und Zählraten je Frame in einem Durchlauf, bit-identisch zu den NumPy-Fassungen (Rückfall
@@ -175,7 +176,7 @@ die CPU – dort rechnet automatisch die CPU.
 
 Version: einzige Quelle `harp/__init__.py` (`__version__`), abrufbar über `/api/health`.
 
-Auch in Version 1.3.0 kommen die Daten **nicht von einer echten Harp**, sondern aus einer
+Auch in Version 1.3.1 kommen die Daten **nicht von einer echten Harp**, sondern aus einer
 **Messsimulation mit einer `.ptu`-Datei**, die in Echtzeit abgespielt wird.
 
 > Status: funktionsfähiger Prototyp. Die reine Python-Quelle ist vollständig getestet. Die snAPI-Quelle
@@ -252,11 +253,11 @@ Voraussetzungen: Windows 10/11 (64 Bit), Internet für die einmalige Installatio
 
 1. **Python 3.13 (64 Bit)** von <https://www.python.org/downloads/> installieren („Add python.exe to PATH“ ankreuzen).
    PicoQuant empfiehlt in der snAPI-Installationsanleitung Python 3.13; snAPI selbst verlangt Python ≥ 3.10.
-2. Programm-Zip entpacken, z. B. nach `C:\ExSE\` (ergibt `C:\ExSE\exse-harp-gx-mobil`).
+2. Programm-Zip entpacken, z. B. nach `C:\Harp\` (ergibt `C:\Harp\harp-gx-mobil`).
 3. Doppelklick auf **`install_windows.bat`** (sucht Python, legt `.venv` an, installiert `requirements.txt`) –
    oder manuell in der Eingabeaufforderung:
    ```bat
-   cd C:\ExSE\exse-harp-gx-mobil
+   cd C:\Harp\harp-gx-mobil
    py -3.13 -m venv .venv
    .venv\Scripts\activate
    pip install -r requirements.txt
@@ -455,7 +456,7 @@ Steuer-Sperre, WebSocket-Ablauf, Anmeldung (Login-Seite, `?token=`, Cookie, Fehl
 Tunnel-Situation (Host/Origin `abc.trycloudflare.com`, `X-Forwarded-Proto`, `CF-Connecting-IP`, fremde Origin); mit installiertem snAPI zusätzlich den Vergleich
 snAPI-Histogramm ↔ eigenes Histogramm.
 
-## 10. Bekannte Einschränkungen (1.3.0)
+## 10. Bekannte Einschränkungen (1.3.1)
 
 * Keine echte Harp; die Live-Quelle `hh500` ist ein Platzhalter.
 * snAPI-Quelle unter Windows ungetestet. Unter Linux (snAPI 1.2.5) beobachtet: Öffnen einer weiteren Datei im

@@ -1,4 +1,4 @@
-﻿# ExSE Harp GX Mobil - Online-Start ueber einen Cloudflare Quick Tunnel (ohne Konto)
+﻿# ExplorationSE Harp GX Mobil - Online-Start ueber einen Cloudflare Quick Tunnel (ohne Konto)
 # Start normalerweise per Doppelklick auf start_online.bat.
 # Optionen:  -Port 8765   -NoTunnel (nur lokal)   -NoWait (nicht auf Enter warten)
 # Umgebungsvariablen (optional):
@@ -52,7 +52,7 @@ function Get-Tail([string]$path) {
 $ver = '?'
 $vm = Select-String -Path (Join-Path $root 'harp\__init__.py') -Pattern '__version__\s*=\s*"([^"]+)"' | Select-Object -First 1
 if ($vm) { $ver = $vm.Matches[0].Groups[1].Value }
-Say "== ExSE Harp GX Mobil $ver - Online-Start =="
+Say "== ExplorationSE Harp GX Mobil $ver - Online-Start =="
 
 # --- 1. Python-Umgebung --------------------------------------------------------------
 $py = $env:HARP_PYTHON

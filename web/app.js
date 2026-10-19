@@ -435,7 +435,7 @@ function renderInfo() {
       ["Rechenkern", `${gh.backend === "gpu" ? "GPU (wgpu" + (gh.gpu_name ? ", " + gh.gpu_name : "") + ")" : (ENGINE_NAME[gh.backend] || gh.backend) + (gh.threads ? " · " + gh.threads + " Threads" : "")} · ${gh.proc_mtags ?? "–"} Mtags/s · Latenz ${gh.latency_ms} ms${S.rtt != null ? " + Netz ≈ " + Math.round(S.rtt / 2) + " ms" : ""} · ${fmtBytes(G.bytes || 0)}/Frame${(S.view === "g3" || S.view === "g4") && S.gxHz ? " · " + S.gxHz.toFixed(1) + " Hz" : ""}${gh.engine_note ? " · " + gh.engine_note : ""}`]);
   }
   rows.push(["Clients", String(st.clients ?? "–")]);
-  if (st.version) $("appver").textContent = "ExSE Harp GX Mobil " + st.version;
+  if (st.version) $("appver").textContent = "ExplorationSE Harp GX Mobil " + st.version;
   $("infolist").innerHTML = rows.map(([k, v]) => `<dt>${gsym(k)}</dt><dd>${gsym(v)}</dd>`).join("");
   if (m) $("progress").firstElementChild.style.width = (m.progress * 100).toFixed(1) + "%";
 }

@@ -1,4 +1,24 @@
-# Änderungsprotokoll – ExSE Harp GX Mobil
+# Änderungsprotokoll – ExplorationSE Harp GX Mobil
+
+> Bis Version 1.3.0 hieß das Projekt „ExSE Harp GX Mobil“ (Repository `ExplorationSE/exse-harp-gx-mobil`).
+> Die Einträge bis 1.3.0 behalten den damaligen Namen.
+
+## 1.3.1 – 19.10.2026
+
+Umbenennung, keine Funktionsänderung.
+- Neuer Name **ExplorationSE Harp GX Mobil** (vorher „ExSE Harp GX Mobil“): Seitentitel, App-Name im Manifest, Infobereich, Anmeldeseite,
+  `/api/health`, Server- und Skriptmeldungen, README, Anleitung und PDF. Oben in der App steht weiterhin kurz
+  „Harp GX Mobil“ (Kurzname im Manifest unverändert).
+- GitHub-Repository umbenannt in `ExplorationSE/harp-gx-mobil` (alte Adresse leitet weiter);
+  Download-Dateien heißen jetzt `harp-gx-mobil-…zip`, der Ordner im Programm-Zip `harp-gx-mobil`.
+  Vorschlag für den Installationsordner in Anleitung und README: `C:\Harp\` (bisher `C:\ExSE\`);
+  bestehende Installationen funktionieren an ihrem Ort unverändert weiter.
+- Rust-Kern `harp_gx_core` 1.3.1: nur Paketbeschreibung geändert, Rechencode unverändert.
+- Service-Worker-Cache `harp-gx-mobil-1.3.1-r1` (alte Caches werden beim Aktivieren gelöscht). Die gespeicherten
+  Einstellungen im Browser (`harp.*`) bleiben erhalten. Wer die App auf dem Startbildschirm hat, kann sie entfernen
+  und neu hinzufügen, damit der neue Name erscheint.
+- Kasten „… ist ONLINE“ im Startfenster etwas breiter, damit der längere Name passt. Anleitung-PDF neu erzeugt.
+- Daten-Zips: Inhalt unverändert, nur der Dateiname (`harp-gx-mobil-1.3.1-daten-1.zip` … `-daten-8.zip`).
 
 ## 1.3.0 – 17.10.2026
 

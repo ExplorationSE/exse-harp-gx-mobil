@@ -25,6 +25,6 @@ with sync_playwright() as p:
     pg.pdf(path=str(ROOT / "docs" / "Anleitung_Windows_Online.pdf"), format="A4", print_background=True,
            margin={"top": "16mm", "bottom": "16mm", "left": "16mm", "right": "16mm"},
            display_header_footer=True, header_template="<span></span>",
-           footer_template=f'<div style="font-size:8pt;width:100%;text-align:center;color:#666">ExSE Harp GX Mobil {ver} – Anleitung Windows/Online · Seite <span class="pageNumber"></span>/<span class="totalPages"></span></div>')
+           footer_template=f'<div style="font-size:8pt;width:100%;text-align:center;color:#666">ExplorationSE Harp GX Mobil {ver} – Anleitung Windows/Online · Seite <span class="pageNumber"></span>/<span class="totalPages"></span></div>')
     b.close()
 print("docs/Anleitung_Windows_Online.pdf")

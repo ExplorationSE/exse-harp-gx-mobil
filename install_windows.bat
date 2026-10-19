@@ -1,5 +1,5 @@
 @echo off
-rem ExSE Harp GX Mobil - einmalige Installation (Windows 10/11, 64 Bit)
+rem ExplorationSE Harp GX Mobil - einmalige Installation (Windows 10/11, 64 Bit)
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 set "PYEXE="

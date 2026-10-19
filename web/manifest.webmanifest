@@ -1,5 +1,5 @@
 {
-  "name": "ExSE Harp GX Mobil",
+  "name": "ExplorationSE Harp GX Mobil",
   "short_name": "Harp GX Mobil",
   "description": "Live-Histogramme und g²/g³/g⁴ einer simulierten Harp aus PTU-Dateien – noch ohne Anbindung an eine echte Harp",
   "start_url": "/",

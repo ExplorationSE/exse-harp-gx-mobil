@@ -15,9 +15,9 @@ def main() -> None:
     url, code = sys.argv[1], sys.argv[2]
     pretty = code if len(code) != 10 else f"{code[:5]}-{code[5:]}"
     link = f"{url}/?token={code}"
-    line = "=" * 66
+    line = "=" * 76
     print("\n" + line)
-    print(f"  ExSE Harp GX Mobil {__version__} ist ONLINE (Cloudflare Quick Tunnel)")
+    print(f"  ExplorationSE Harp GX Mobil {__version__} ist ONLINE (Cloudflare Quick Tunnel)")
     print(line)
     print(f"  Adresse (am Handy öffnen):  {url}")
     print(f"  Zugangscode:                {pretty}")

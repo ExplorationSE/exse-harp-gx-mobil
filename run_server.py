@@ -12,7 +12,7 @@ from harp.server import create_app
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=f"ExSE Harp GX Mobil {__version__} Server")
+    ap = argparse.ArgumentParser(description=f"ExplorationSE Harp GX Mobil {__version__} Server")
     ap.add_argument("--config", default=None, help="Pfad zur config.toml")
     ap.add_argument("--host", default=None)
     ap.add_argument("--port", type=int, default=None)
@@ -38,7 +38,7 @@ def main() -> None:
     if a.token or os.environ.get("HARP_TOKEN"):
         cfg.token = a.token or os.environ["HARP_TOKEN"]
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    print(f"ExSE Harp GX Mobil {__version__} – Quelle: {cfg.source}, Daten: {cfg.data_dir}")
+    print(f"ExplorationSE Harp GX Mobil {__version__} – Quelle: {cfg.source}, Daten: {cfg.data_dir}")
     print(f"Im Browser öffnen: http://<IP-dieses-PCs>:{cfg.port}/" + (f"?token=<TOKEN>" if cfg.token else ""))
     uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port, log_level="info", ws_ping_interval=20)
 

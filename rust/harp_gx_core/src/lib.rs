@@ -1,4 +1,4 @@
-//! Rust-Rechenkern für ExSE Harp GX Mobil: Koinzidenzhistogramme g²/g³/g⁴ auf sortierten Zeitmarken (i64, ps).
+//! Rust-Rechenkern für ExplorationSE Harp GX Mobil: Koinzidenzhistogramme g²/g³/g⁴ auf sortierten Zeitmarken (i64, ps).
 //!
 //! Gleiche Rechenvorschrift wie die Numba-Kerne in `harp/gx/kernels.py` (bit-identische Histogramme):
 //! Für jede Start-Marke t = ta[i], i0 ≤ i < i1, werden alle Marken der anderen Kanäle mit t − W ≤ tx < t + W
